@@ -61,16 +61,6 @@ jobs:
           node-version: '24'
           package-manager-cache: false
 
-      - name: 恢复抓取缓存与最小运行状态
-        uses: actions/cache@v5
-        with:
-          path: |
-            .cache
-            state
-          key: briefing-state-${{ github.run_id }}
-          restore-keys: |
-            briefing-state-
-
       - name: 执行测试
         run: node --test tests/*.test.cjs
 
@@ -111,16 +101,3 @@ jobs:
           if [ -n "${{ steps.runtime.outputs.date }}" ]; then ARGS+=(--date "${{ steps.runtime.outputs.date }}"); fi
           if [ "${{ steps.runtime.outputs.mode }}" != "scan" ] && [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then ARGS+=(--send); fi
           node scripts/run-daily.cjs "${ARGS[@]}"
-
-      - name: 保存非敏感运行产物
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: briefing-run-${{ github.run_id }}
-          path: |
-            output/*.audit.json
-            output/*.selected.json
-            output/failure-*.json
-            output/failure-*.txt
-          if-no-files-found: ignore
-          retention-days: 14
