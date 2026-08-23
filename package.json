@@ -2,7 +2,24 @@
   "name": "daily-global-briefing",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "中文全球晨报的来源审计、内容校验与移动端邮件生成系统",
+  "keywords": [
+    "daily-briefing",
+    "news-digest",
+    "github-actions",
+    "chinese",
+    "ai-news",
+    "email"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weleuther900-arch/daily-global-briefing.git"
+  },
+  "bugs": {
+    "url": "https://github.com/weleuther900-arch/daily-global-briefing/issues"
+  },
+  "homepage": "https://github.com/weleuther900-arch/daily-global-briefing#readme",
   "scripts": {
     "build:sample": "node scripts/build-briefing.cjs --input examples/candidates.sample.json --output output",
     "discover": "node scripts/collect-sources.cjs",
