@@ -1,0 +1,220 @@
+{
+  "briefingDate": "2026-08-17",
+  "sampleOnly": true,
+  "candidates": [
+    {
+      "eventKey": "sample-ai-platform-release",
+      "category": "ai",
+      "title": "流程样例：人工智能开发平台发布正式版本",
+      "conclusion": "该样例用于验证正式发布、技术机制、商业影响和观察指标能否在同一事件中保持清晰层级，不代表真实新闻。",
+      "publishedAt": "2026-08-16T14:30:00+08:00",
+      "editorialDecision": "include",
+      "evidenceStatus": "confirmed",
+      "includeReason": "material-impact",
+      "tags": ["流程样例", "人工智能平台"],
+      "importance": {
+        "scope": 2,
+        "magnitude": 1,
+        "duration": 1,
+        "relevance": 2,
+        "evidence": 2
+      },
+      "sections": [
+        {
+          "title": "已确认事实",
+          "paragraphs": [
+            "这是本地开发使用的结构化样例。它检查公开时间、来源链接、关键事实绑定和栏目编号，不作为晨报事实材料。"
+          ]
+        },
+        {
+          "title": "商业与产业影响",
+          "paragraphs": [
+            "平台型产品的商业价值取决于调用量、单位服务成本、开发者迁移成本和企业采购周期。正式晨报需要分别说明这些变量，不能把产品发布直接写成市场格局已经改变。"
+          ]
+        }
+      ],
+      "concepts": [
+        {
+          "name": "单位服务成本",
+          "explanation": "单位服务成本是企业完成一次调用或处理一个标准工作量需要承担的平均成本。模型推理所需的芯片时间、电力、网络和运维都会进入这项成本，它直接影响产品毛利率与定价空间。"
+        }
+      ],
+      "watch": [
+        {
+          "item": "正式价格表与实际调用量",
+          "reason": "两项数据可以检验产品是否形成真实需求，以及收入增长能否覆盖新增算力成本。"
+        }
+      ],
+      "sources": [
+        {
+          "organization": "项目本地样例",
+          "title": "人工智能开发平台结构测试页",
+          "url": "https://example.com/briefing/sample-ai-platform",
+          "tier": "S",
+          "access": "open",
+          "isPrimary": true
+        }
+      ],
+      "criticalFacts": [
+        {
+          "claim": "该事件只用于本地结构测试。",
+          "sourceUrls": ["https://example.com/briefing/sample-ai-platform"]
+        }
+      ]
+    },
+    {
+      "eventKey": "sample-ai-platform-release",
+      "category": "ai",
+      "title": "人工智能开发平台正式发布的重复候选",
+      "conclusion": "该记录用于验证同一事件只保留一次。",
+      "publishedAt": "2026-08-16T15:00:00+08:00",
+      "editorialDecision": "include",
+      "evidenceStatus": "confirmed",
+      "includeReason": "material-impact",
+      "tags": ["重复测试"],
+      "importance": {
+        "scope": 1,
+        "magnitude": 1,
+        "duration": 1,
+        "relevance": 2,
+        "evidence": 2
+      },
+      "sections": [
+        {
+          "title": "去重说明",
+          "paragraphs": ["eventKey相同时，系统只保留内部重要性得分更高的版本。"]
+        }
+      ],
+      "sources": [
+        {
+          "organization": "项目本地样例",
+          "title": "重复候选结构测试页",
+          "url": "https://example.com/briefing/sample-ai-platform-duplicate",
+          "tier": "S",
+          "access": "open",
+          "isPrimary": true
+        }
+      ],
+      "criticalFacts": [
+        {
+          "claim": "该记录是重复候选。",
+          "sourceUrls": ["https://example.com/briefing/sample-ai-platform-duplicate"]
+        }
+      ]
+    },
+    {
+      "eventKey": "sample-digital-trade-policy",
+      "category": "digital-economy",
+      "title": "流程样例：跨境数字服务成本结构发生变化",
+      "conclusion": "该样例检验政策分析能否从成本变化传导至价格、需求、利润空间和竞争格局，不代表真实政策。",
+      "publishedAt": "2026-08-16T20:10:00+08:00",
+      "editorialDecision": "include",
+      "evidenceStatus": "confirmed",
+      "includeReason": "material-impact",
+      "tags": ["流程样例", "数字贸易"],
+      "importance": {
+        "scope": 2,
+        "magnitude": 2,
+        "duration": 1,
+        "relevance": 2,
+        "evidence": 2
+      },
+      "sections": [
+        {
+          "title": "政策安排",
+          "paragraphs": [
+            "本段仅验证政策适用对象、生效时间和成本项目能否分别表达。真实政策必须回查正式文件，不能依据媒体标题推断适用范围。"
+          ]
+        },
+        {
+          "title": "经营含义",
+          "paragraphs": [
+            "成本上升并不自动等于利润同比例下降。企业能否提价、客户是否有替代方案、合同多久重新定价，决定成本最终由企业、供应商还是客户承担。"
+          ]
+        }
+      ],
+      "concepts": [
+        {
+          "name": "成本转嫁",
+          "explanation": "成本转嫁是企业通过提高售价，把新增成本的一部分交由客户承担。能否转嫁取决于产品差异、客户转换成本、合同期限和竞争对手的价格选择。"
+        }
+      ],
+      "formula": {
+        "symbol": "M = R − C",
+        "text": "经营利润空间 = 营业收入 − 完整经营成本",
+        "notes": [
+          "M代表经营利润空间",
+          "R代表营业收入",
+          "C代表完整经营成本"
+        ]
+      },
+      "dataTable": {
+        "headings": ["验证变量", "需要观察的证据"],
+        "rows": [
+          ["价格传导", "续约价格与折扣变化"],
+          ["需求变化", "客户留存率与使用量"],
+          ["利润影响", "毛利率与单位服务成本"]
+        ]
+      },
+      "watch": [
+        {
+          "item": "下一批企业合同的续约价格",
+          "reason": "续约结果能够检验供应商是否具备成本转嫁能力。"
+        },
+        {
+          "item": "客户使用量和流失率",
+          "reason": "价格提高后需求是否下降，将决定收入增长能否抵消成本压力。"
+        }
+      ],
+      "sources": [
+        {
+          "organization": "项目本地样例",
+          "title": "数字贸易结构测试页",
+          "url": "https://example.com/briefing/sample-digital-trade?utm_source=test",
+          "tier": "S",
+          "access": "open",
+          "isPrimary": true
+        }
+      ],
+      "criticalFacts": [
+        {
+          "claim": "该事件只用于本地政策分析结构测试。",
+          "sourceUrls": ["https://example.com/briefing/sample-digital-trade"]
+        }
+      ]
+    },
+    {
+      "eventKey": "sample-unrelated-disaster",
+      "category": "global-economy-politics",
+      "title": "流程样例：与项目主题无关的地区性灾害",
+      "conclusion": "该候选应被排除。",
+      "publishedAt": "2026-08-16T21:00:00+08:00",
+      "editorialDecision": "include",
+      "evidenceStatus": "confirmed",
+      "includeReason": "material-impact",
+      "exclusionFlags": ["unrelated-disaster"],
+      "importance": { "scope": 1, "magnitude": 1, "duration": 1, "relevance": 0, "evidence": 2 },
+      "sections": [{ "title": "事件概况", "paragraphs": ["该内容不影响供应链、能源、金融市场或相关政策。"] }],
+      "sources": [{ "organization": "项目本地样例", "title": "排除项测试页", "url": "https://example.com/briefing/rejected-disaster", "tier": "S", "access": "open", "isPrimary": true }],
+      "criticalFacts": [{ "claim": "该候选用于排除项测试。", "sourceUrls": ["https://example.com/briefing/rejected-disaster"] }]
+    },
+    {
+      "eventKey": "sample-paywall",
+      "category": "ai",
+      "title": "流程样例：只有付费页面的独家分析",
+      "conclusion": "该候选应被排除。",
+      "publishedAt": "2026-08-16T22:00:00+08:00",
+      "editorialDecision": "include",
+      "evidenceStatus": "confirmed",
+      "includeReason": "material-impact",
+      "importance": { "scope": 1, "magnitude": 1, "duration": 1, "relevance": 2, "evidence": 1 },
+      "sections": [{ "title": "访问状态", "paragraphs": ["没有找到合法公开版本或独立依据。"] }],
+      "sources": [{ "organization": "项目本地样例", "title": "付费墙测试页", "url": "https://example.com/briefing/paywalled", "tier": "A", "access": "paid", "isPrimary": false }],
+      "criticalFacts": [{ "claim": "该候选只有付费来源。", "sourceUrls": ["https://example.com/briefing/paywalled"] }]
+    }
+  ],
+  "thinking": {
+    "title": "当成本上涨时，企业应当优先提价、压缩成本，还是接受较低利润？",
+    "context": "从客户转换成本、竞争强度、合同周期和现金流安全四个角度，判断不同策略成立的条件。"
+  }
+}

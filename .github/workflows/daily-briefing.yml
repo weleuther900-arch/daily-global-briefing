@@ -1,0 +1,126 @@
+name: Daily Global Briefing
+
+on:
+  schedule:
+    - cron: '5 23 * * *'
+    - cron: '0 7 * * *'
+    - cron: '0 15 * * *'
+    - cron: '0 0 * * *'
+    - cron: '0 12 * * 0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 运行模式
+        required: true
+        default: scan
+        type: choice
+        options:
+          - scan
+          - final
+          - case
+          - layout-test
+      briefing_date:
+        description: 晨报日期，可留空
+        required: false
+        type: string
+      allow_send:
+        description: 是否允许正式发送
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-global-briefing
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+      BRIEFING_GENERATOR_PROVIDER: deepseek
+      DEEPSEEK_MODEL: deepseek-v4-flash
+      BRIEFING_REVIEWER_PROVIDER: deepseek
+      DEEPSEEK_REVIEW_MODEL: deepseek-v4-pro
+      MONTHLY_AI_BUDGET_CNY: '10'
+      USD_CNY_RATE: ${{ vars.USD_CNY_RATE || '7.2' }}
+      ENABLE_EMAIL_SEND: ${{ secrets.ENABLE_EMAIL_SEND || 'false' }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      BRIEFING_SENDER_ADDRESS: ${{ secrets.BRIEFING_SENDER_ADDRESS }}
+      BRIEFING_RECIPIENT_ADDRESS: ${{ secrets.BRIEFING_RECIPIENT_ADDRESS }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: 恢复抓取缓存与最小运行状态
+        uses: actions/cache@v5
+        with:
+          path: |
+            .cache
+            state
+          key: briefing-state-${{ github.run_id }}
+          restore-keys: |
+            briefing-state-
+
+      - name: 执行测试
+        run: node --test tests/*.test.cjs
+
+      - name: 决定运行模式
+        id: runtime
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            echo "date=${{ inputs.briefing_date }}" >> "$GITHUB_OUTPUT"
+            echo "manual_send=${{ inputs.allow_send }}" >> "$GITHUB_OUTPUT"
+          # GitHub 的 schedule 任务可能在计划时刻后才被调度。按触发它的 cron
+          # 条目判断模式，不能按运行器实际启动的时钟判断，否则正式任务会误降为巡检。
+          elif [ "${{ github.event.schedule }}" = "0 12 * * 0" ]; then
+            echo "mode=case" >> "$GITHUB_OUTPUT"
+            echo "date=" >> "$GITHUB_OUTPUT"
+            echo "manual_send=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 0 * * *" ]; then
+            echo "mode=final" >> "$GITHUB_OUTPUT"
+            echo "date=" >> "$GITHUB_OUTPUT"
+            echo "manual_send=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=scan" >> "$GITHUB_OUTPUT"
+            echo "date=" >> "$GITHUB_OUTPUT"
+            echo "manual_send=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 执行只读巡检或正式晨报
+        shell: bash
+        run: |
+          if [ "${{ steps.runtime.outputs.mode }}" = "layout-test" ]; then
+            ARGS=()
+            if [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then ARGS+=(--send); fi
+            node scripts/send-layout-test.cjs "${ARGS[@]}"
+            exit 0
+          fi
+          ARGS=(--mode "${{ steps.runtime.outputs.mode }}")
+          if [ -n "${{ steps.runtime.outputs.date }}" ]; then ARGS+=(--date "${{ steps.runtime.outputs.date }}"); fi
+          if [ "${{ steps.runtime.outputs.mode }}" != "scan" ] && [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then ARGS+=(--send); fi
+          node scripts/run-daily.cjs "${ARGS[@]}"
+
+      - name: 保存非敏感运行产物
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: briefing-run-${{ github.run_id }}
+          path: |
+            output/*.audit.json
+            output/*.selected.json
+            output/failure-*.json
+            output/failure-*.txt
+          if-no-files-found: ignore
+          retention-days: 14

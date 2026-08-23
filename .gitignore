@@ -1,0 +1,11 @@
+.tools/
+.auth/
+.env
+*.token-cache.json
+*.eml
+output/
+.cache/
+.runtime/
+state/
+.tmp-run-*/
+.private/

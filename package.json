@@ -1,0 +1,18 @@
+{
+  "name": "daily-global-briefing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "中文全球晨报的来源审计、内容校验与移动端邮件生成系统",
+  "scripts": {
+    "build:sample": "node scripts/build-briefing.cjs --input examples/candidates.sample.json --output output",
+    "discover": "node scripts/collect-sources.cjs",
+    "details": "node scripts/enrich-details.cjs",
+    "candidates": "node scripts/prepare-candidates.cjs",
+    "run:sample": "node scripts/run-daily.cjs --date 2026-08-17 --fixture examples/candidates.sample.json",
+    "run:daily": "node scripts/run-daily.cjs",
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

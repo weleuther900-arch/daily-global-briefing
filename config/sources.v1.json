@@ -1,0 +1,842 @@
+{
+  "version": 2,
+  "updatedAt": "2026-08-22",
+  "coverageGroups": [
+    {
+      "id": "international-ai-official",
+      "name": "国际人工智能官方发布",
+      "sourceIds": ["openai-news", "anthropic-news", "deepmind-blog", "nvidia-newsroom", "microsoft-official-blog", "meta-ai-blog", "mistral-news", "xai-news", "qwen-blog", "deepseek-api-updates", "google-ai-blog", "aws-machine-learning-blog", "hugging-face-blog"],
+      "minimumAvailable": 6
+    },
+    {
+      "id": "china-digital-policy",
+      "name": "中国数字经济与宏观政策",
+      "sourceIds": ["cac-home", "pbc-news", "nbs-data", "nbs-release-calendar", "ndrc-news", "mofcom-news", "miit-rss", "mof-news", "safe-news"],
+      "minimumAvailable": 4
+    },
+    {
+      "id": "global-digital-policy",
+      "name": "国际数字政策与监管",
+      "sourceIds": ["federal-register-tech", "eu-digital-news", "white-house-news", "us-treasury-news", "us-commerce-news"],
+      "minimumAvailable": 2
+    },
+    {
+      "id": "developer-ecosystem",
+      "name": "开发者与开源生态",
+      "sourceIds": ["github-changelog", "github-trending", "github-advisories"],
+      "minimumAvailable": 1
+    },
+    {
+      "id": "china-macro-release",
+      "name": "中国宏观数据发布发现",
+      "sourceIds": ["nbs-data", "nbs-release-calendar"],
+      "minimumAvailable": 1
+    },
+    {
+      "id": "us-macro-release",
+      "name": "美国宏观数据与政策发布发现",
+      "sourceIds": ["bls-latest", "bea-releases", "fed-press-all", "fed-industrial-production", "fred-employment-release", "fred-cpi-release"],
+      "minimumAvailable": 3
+    },
+    {
+      "id": "global-macro-institutions",
+      "name": "国际组织与主要央行",
+      "sourceIds": ["imf-news", "wto-news", "ecb-press", "world-bank-news", "iea-news"],
+      "minimumAvailable": 2
+    },
+    {
+      "id": "authoritative-media-watch",
+      "name": "国际权威媒体综合观察",
+      "sourceIds": ["reuters-world", "reuters-business", "bbc-world", "bbc-business", "bbc-technology", "ap-world", "ap-business", "ap-technology"],
+      "minimumAvailable": 3
+    }
+  ],
+  "sources": [
+    {
+      "id": "openai-news",
+      "name": "OpenAI新闻",
+      "region": "国际",
+      "topics": ["ai"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://openai.com/news/",
+        "allowedHosts": ["openai.com"],
+        "linkPattern": "^https://openai\\.com/(?:index/|news/|research/|global-affairs/|safety/|business/|engineering/).+",
+        "excludeLinkPattern": "^https://openai\\.com/(?:news|research)(?:/(?:index|company-announcements|research|product-releases|safety-alignment|engineering|security|global-affairs))?/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "anthropic-news",
+      "name": "Anthropic新闻",
+      "region": "国际",
+      "topics": ["ai"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.anthropic.com/news",
+        "allowedHosts": ["www.anthropic.com", "anthropic.com"],
+        "linkPattern": "^https://(?:www\\.)?anthropic\\.com/news/.+"
+      }
+    },
+    {
+      "id": "deepmind-blog",
+      "name": "Google DeepMind博客",
+      "region": "国际",
+      "topics": ["ai"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://deepmind.google/blog/rss.xml",
+        "allowedHosts": ["deepmind.google"]
+      }
+    },
+    {
+      "id": "nvidia-newsroom",
+      "name": "NVIDIA新闻中心",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://nvidianews.nvidia.com/releases.xml",
+        "allowedHosts": ["nvidianews.nvidia.com"]
+      }
+    },
+    {
+      "id": "microsoft-official-blog",
+      "name": "微软官方博客",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://blogs.microsoft.com/feed/",
+        "allowedHosts": ["blogs.microsoft.com"]
+      }
+    },
+    {
+      "id": "meta-ai-blog",
+      "name": "Meta人工智能博客",
+      "region": "国际",
+      "topics": ["ai", "open-source-tech"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://ai.meta.com/blog/",
+        "allowedHosts": ["ai.meta.com"],
+        "linkPattern": "^https://ai\\.meta\\.com/blog/.+",
+        "excludeLinkPattern": "^https://ai\\.meta\\.com/blog/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "mistral-news",
+      "name": "Mistral人工智能新闻",
+      "region": "国际",
+      "topics": ["ai", "open-source-tech"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://mistral.ai/news/",
+        "allowedHosts": ["mistral.ai"],
+        "linkPattern": "^https://mistral\\.ai/news/.+",
+        "excludeLinkPattern": "^https://mistral\\.ai/news/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "xai-news",
+      "name": "xAI新闻",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://x.ai/news",
+        "allowedHosts": ["x.ai"],
+        "linkPattern": "^https://x\\.ai/news/.+",
+        "excludeLinkPattern": "^https://x\\.ai/news/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "qwen-blog",
+      "name": "通义千问官方博客",
+      "region": "中国",
+      "topics": ["ai", "open-source-tech", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://qwenlm.github.io/blog/index.xml",
+        "allowedHosts": ["qwenlm.github.io"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "github-changelog",
+      "name": "GitHub更新日志",
+      "region": "国际",
+      "topics": ["open-source-tech", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "daily",
+      "discovery": {
+        "type": "rss",
+        "url": "https://github.blog/changelog/feed/",
+        "allowedHosts": ["github.blog"]
+      }
+    },
+    {
+      "id": "github-trending",
+      "name": "GitHub每日热门项目",
+      "region": "国际",
+      "topics": ["open-source-tech", "ai", "digital-economy"],
+      "tier": "B",
+      "kind": "community-signal",
+      "frequency": "daily",
+      "discovery": {
+        "type": "github-trending",
+        "url": "https://github.com/trending?since=daily",
+        "allowedHosts": ["github.com"],
+        "maxItems": 25
+      }
+    },
+    {
+      "id": "github-advisories",
+      "name": "GitHub安全公告",
+      "region": "国际",
+      "topics": ["open-source-tech", "ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://github.com/advisories",
+        "allowedHosts": ["github.com"],
+        "linkPattern": "^https://github\\.com/advisories/GHSA-[A-Za-z0-9-]+$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "x-official-ai-watch",
+      "name": "X官方人工智能机构发布观察",
+      "region": "国际",
+      "topics": ["ai", "digital-economy", "open-source-tech"],
+      "tier": "B",
+      "kind": "official-social",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "x-api",
+        "url": "https://api.x.com/2/tweets/search/recent",
+        "allowedHosts": ["api.x.com", "x.com"],
+        "query": "(from:OpenAI OR from:AnthropicAI OR from:GoogleDeepMind OR from:AIatMeta OR from:xAI OR from:MistralAI OR from:NVIDIAAI OR from:Alibaba_Qwen OR from:deepseek_ai) -is:retweet -is:reply",
+        "maxItems": 25
+      }
+    },
+    {
+      "id": "cac-home",
+      "name": "国家互联网信息办公室",
+      "region": "中国",
+      "topics": ["ai", "digital-economy", "china-economy-policy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.cac.gov.cn/",
+        "allowedHosts": ["www.cac.gov.cn", "cac.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?cac\\.gov\\.cn/2026-.+"
+      }
+    },
+    {
+      "id": "pbc-news",
+      "name": "中国人民银行新闻",
+      "region": "中国",
+      "topics": ["digital-economy", "china-economy-policy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.pbc.gov.cn/goutongjiaoliu/113456/113469/index.html",
+        "allowedHosts": ["www.pbc.gov.cn", "pbc.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?pbc\\.gov\\.cn/goutongjiaoliu/.+"
+      }
+    },
+    {
+      "id": "nbs-data",
+      "name": "国家统计局数据发布",
+      "region": "中国",
+      "topics": ["china-economy-policy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "release-calendar",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.stats.gov.cn/sj/",
+        "allowedHosts": ["www.stats.gov.cn", "stats.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?stats\\.gov\\.cn/sj/.+"
+      }
+    },
+    {
+      "id": "nbs-release-calendar",
+      "name": "国家统计局发布日程",
+      "region": "中国",
+      "topics": ["china-economy-policy"],
+      "tier": "S",
+      "kind": "government-calendar",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.stats.gov.cn/sj/fbrc/bnxxfb/",
+        "allowedHosts": ["www.stats.gov.cn", "stats.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?stats\\.gov\\.cn/(?:sj|xw|xxgk)/.+"
+      }
+    },
+    {
+      "id": "ndrc-news",
+      "name": "国家发展和改革委员会新闻发布",
+      "region": "中国",
+      "topics": ["ai", "digital-economy", "china-economy-policy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.ndrc.gov.cn/xwdt/xwfb/",
+        "allowedHosts": ["www.ndrc.gov.cn", "ndrc.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?ndrc\\.gov\\.cn/xwdt/xwfb/.+\\.html$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "mofcom-news",
+      "name": "中华人民共和国商务部新闻发布",
+      "region": "中国",
+      "topics": ["digital-economy", "china-economy-policy", "global-economy-politics"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.mofcom.gov.cn/xwfb/",
+        "allowedHosts": ["www.mofcom.gov.cn", "mofcom.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?mofcom\\.gov\\.cn/xwfb/.+/art/\\d{4}/art_.+\\.html$",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "bls-latest",
+      "name": "美国劳工统计局最新数据",
+      "region": "美国",
+      "topics": ["global-economy-politics"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "release-calendar",
+      "discovery": {
+        "type": "rss",
+        "url": "https://www.bls.gov/feed/bls_latest.rss",
+        "allowedHosts": ["www.bls.gov", "bls.gov"]
+      }
+    },
+    {
+      "id": "bea-releases",
+      "name": "美国经济分析局发布",
+      "region": "美国",
+      "topics": ["global-economy-politics"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "release-calendar",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.bea.gov/news/current-releases",
+        "allowedHosts": ["www.bea.gov", "bea.gov"],
+        "linkPattern": "^https://(?:www\\.)?bea\\.gov/news/.+"
+      }
+    },
+    {
+      "id": "fed-press-all",
+      "name": "美联储新闻发布",
+      "region": "美国",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://www.federalreserve.gov/feeds/press_all.xml",
+        "allowedHosts": ["www.federalreserve.gov", "federalreserve.gov"]
+      }
+    },
+    {
+      "id": "fed-industrial-production",
+      "name": "美联储工业生产数据",
+      "region": "美国",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "release-calendar",
+      "discovery": {
+        "type": "rss",
+        "url": "https://www.federalreserve.gov/feeds/g17.xml",
+        "allowedHosts": ["www.federalreserve.gov", "federalreserve.gov"]
+      }
+    },
+    {
+      "id": "fred-employment-release",
+      "name": "圣路易斯联储就业形势发布页",
+      "region": "美国",
+      "topics": ["global-economy-politics"],
+      "tier": "S",
+      "kind": "federal-reserve-data",
+      "frequency": "release-calendar",
+      "discovery": {
+        "type": "html",
+        "url": "https://fred.stlouisfed.org/release?rid=50",
+        "allowedHosts": ["fred.stlouisfed.org"],
+        "linkPattern": "^https://fred\\.stlouisfed\\.org/(?:release|series)/.+"
+      }
+    },
+    {
+      "id": "fred-cpi-release",
+      "name": "圣路易斯联储消费者价格指数发布页",
+      "region": "美国",
+      "topics": ["global-economy-politics"],
+      "tier": "S",
+      "kind": "federal-reserve-data",
+      "frequency": "release-calendar",
+      "discovery": {
+        "type": "html",
+        "url": "https://fred.stlouisfed.org/release?rid=10",
+        "allowedHosts": ["fred.stlouisfed.org"],
+        "linkPattern": "^https://fred\\.stlouisfed\\.org/(?:release|series)/.+"
+      }
+    },
+    {
+      "id": "federal-register-tech",
+      "name": "美国联邦公报科技与产业文件",
+      "region": "美国",
+      "topics": ["ai", "digital-economy", "global-economy-politics"],
+      "tier": "S",
+      "kind": "government-api",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "json",
+        "url": "https://www.federalregister.gov/api/v1/documents.json?per_page=20&order=newest&conditions%5Bterm%5D=artificial%20intelligence%20technology%20semiconductor",
+        "allowedHosts": ["www.federalregister.gov", "federalregister.gov"],
+        "itemsPath": "results",
+        "titleField": "title",
+        "urlField": "html_url",
+        "dateField": "publication_date"
+      }
+    },
+    {
+      "id": "eu-digital-news",
+      "name": "欧盟数字战略新闻",
+      "region": "欧盟",
+      "topics": ["ai", "digital-economy", "global-economy-politics"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://digital-strategy.ec.europa.eu/en/news",
+        "allowedHosts": ["digital-strategy.ec.europa.eu"],
+        "linkPattern": "^https://digital-strategy\\.ec\\.europa\\.eu/en/(?:news|library)/.+"
+      }
+    },
+    {
+      "id": "reuters-world",
+      "name": "路透社世界新闻",
+      "region": "国际",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.reuters.com/world/",
+        "allowedHosts": ["www.reuters.com", "reuters.com"],
+        "linkPattern": "^https://(?:www\\.)?reuters\\.com/world/.+",
+        "excludeLinkPattern": "^https://(?:www\\.)?reuters\\.com/world/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "reuters-business",
+      "name": "路透社商业新闻",
+      "region": "国际",
+      "topics": ["digital-economy", "global-economy-politics", "ai"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.reuters.com/business/",
+        "allowedHosts": ["www.reuters.com", "reuters.com"],
+        "linkPattern": "^https://(?:www\\.)?reuters\\.com/(?:business|technology)/.+",
+        "excludeLinkPattern": "^https://(?:www\\.)?reuters\\.com/(?:business|technology)/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "bbc-business",
+      "name": "英国广播公司商业新闻",
+      "region": "国际",
+      "topics": ["digital-economy", "global-economy-politics"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "allowedHosts": ["feeds.bbci.co.uk", "www.bbc.co.uk", "www.bbc.com"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "bbc-technology",
+      "name": "英国广播公司科技新闻",
+      "region": "国际",
+      "topics": ["ai", "digital-economy", "open-source-tech"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+        "allowedHosts": ["feeds.bbci.co.uk", "www.bbc.co.uk", "www.bbc.com"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "ap-business",
+      "name": "美联社商业新闻",
+      "region": "国际",
+      "topics": ["digital-economy", "global-economy-politics"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://apnews.com/hub/business",
+        "allowedHosts": ["apnews.com"],
+        "linkPattern": "^https://apnews\\.com/article/.+",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "ap-technology",
+      "name": "美联社科技新闻",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://apnews.com/hub/technology",
+        "allowedHosts": ["apnews.com"],
+        "linkPattern": "^https://apnews\\.com/article/.+",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "deepseek-api-updates",
+      "name": "DeepSeek官方更新",
+      "region": "中国",
+      "topics": ["ai", "open-source-tech"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://api-docs.deepseek.com/updates/",
+        "allowedHosts": ["api-docs.deepseek.com"],
+        "linkPattern": "^https://api-docs\\.deepseek\\.com/(?:news|updates)/.+",
+        "excludeLinkPattern": "^https://api-docs\\.deepseek\\.com/updates/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "google-ai-blog",
+      "name": "Google人工智能官方博客",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://blog.google/technology/ai/",
+        "allowedHosts": ["blog.google"],
+        "linkPattern": "^https://blog\\.google/(?:technology/ai|products-and-platforms/products/google-ai)/.+",
+        "excludeLinkPattern": "^https://blog\\.google/technology/ai/?(?:\\?.*)?$",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "aws-machine-learning-blog",
+      "name": "亚马逊云科技机器学习博客",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://aws.amazon.com/blogs/machine-learning/feed/",
+        "allowedHosts": ["aws.amazon.com"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "hugging-face-blog",
+      "name": "Hugging Face官方博客",
+      "region": "国际",
+      "topics": ["ai", "open-source-tech"],
+      "tier": "A",
+      "kind": "official",
+      "frequency": "daily",
+      "discovery": {
+        "type": "rss",
+        "url": "https://huggingface.co/blog/feed.xml",
+        "allowedHosts": ["huggingface.co"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "miit-rss",
+      "name": "工业和信息化部RSS订阅",
+      "region": "中国",
+      "topics": ["ai", "digital-economy", "china-economy-policy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.miit.gov.cn/RRSdy/",
+        "allowedHosts": ["www.miit.gov.cn", "miit.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?miit\\.gov\\.cn/.+",
+        "excludeLinkPattern": "^https://(?:www\\.)?miit\\.gov\\.cn/RRSdy/?(?:\\?.*)?$",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "mof-news",
+      "name": "财政部新闻发布",
+      "region": "中国",
+      "topics": ["china-economy-policy", "digital-economy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/",
+        "allowedHosts": ["www.mof.gov.cn", "mof.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?mof\\.gov\\.cn/zhengwuxinxi/.+",
+        "excludeLinkPattern": "^https://(?:www\\.)?mof\\.gov\\.cn/zhengwuxinxi/caizhengxinwen/?(?:\\?.*)?$",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "safe-news",
+      "name": "国家外汇管理局新闻",
+      "region": "中国",
+      "topics": ["china-economy-policy", "global-economy-politics"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.safe.gov.cn/safe/whxw/index.html",
+        "allowedHosts": ["www.safe.gov.cn", "safe.gov.cn"],
+        "linkPattern": "^https://(?:www\\.)?safe\\.gov\\.cn/safe/.+",
+        "excludeLinkPattern": "^https://(?:www\\.)?safe\\.gov\\.cn/safe/whxw/index\\.html(?:\\?.*)?$",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "white-house-news",
+      "name": "美国白宫新闻",
+      "region": "美国",
+      "topics": ["global-economy-politics", "digital-economy", "ai"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.whitehouse.gov/briefings-statements/",
+        "allowedHosts": ["www.whitehouse.gov", "whitehouse.gov"],
+        "linkPattern": "^https://(?:www\\.)?whitehouse\\.gov/(?:briefings-statements|presidential-actions|fact-sheets|remarks)/.+",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "us-treasury-news",
+      "name": "美国财政部新闻",
+      "region": "美国",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://home.treasury.gov/news/press-releases",
+        "allowedHosts": ["home.treasury.gov"],
+        "linkPattern": "^https://home\\.treasury\\.gov/news/.+",
+        "excludeLinkPattern": "^https://home\\.treasury\\.gov/news/press-releases/?(?:\\?.*)?$",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "us-commerce-news",
+      "name": "美国商务部新闻",
+      "region": "美国",
+      "topics": ["digital-economy", "global-economy-politics", "ai"],
+      "tier": "S",
+      "kind": "government",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.commerce.gov/news/press-releases",
+        "allowedHosts": ["www.commerce.gov", "commerce.gov"],
+        "linkPattern": "^https://(?:www\\.)?commerce\\.gov/news/press-releases/.+",
+        "excludeLinkPattern": "^https://(?:www\\.)?commerce\\.gov/news/press-releases/?(?:\\?.*)?$",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "imf-news",
+      "name": "国际货币基金组织新闻",
+      "region": "国际",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "S",
+      "kind": "international-organization",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.imf.org/en/News",
+        "allowedHosts": ["www.imf.org", "imf.org"],
+        "linkPattern": "^https://(?:www\\.)?imf\\.org/en/News/(?:Articles|Press-Release|Blogs)/.+",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "wto-news",
+      "name": "世界贸易组织新闻",
+      "region": "国际",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "S",
+      "kind": "international-organization",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.wto.org/english/news_e/news_e.htm",
+        "allowedHosts": ["www.wto.org", "wto.org"],
+        "linkPattern": "^https://(?:www\\.)?wto\\.org/english/news_e/(?:news|pres)\\d{2}_e/.+",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "ecb-press",
+      "name": "欧洲中央银行新闻发布",
+      "region": "欧盟",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "S",
+      "kind": "central-bank",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.ecb.europa.eu/press/pr/date/html/index.en.html",
+        "allowedHosts": ["www.ecb.europa.eu", "ecb.europa.eu"],
+        "linkPattern": "^https://www\\.ecb\\.europa\\.eu/press/pr/date/\\d{4}/html/.+",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "world-bank-news",
+      "name": "世界银行新闻发布",
+      "region": "国际",
+      "topics": ["global-economy-politics", "digital-economy"],
+      "tier": "S",
+      "kind": "international-organization",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.worldbank.org/en/news/press-release",
+        "allowedHosts": ["www.worldbank.org", "worldbank.org"],
+        "linkPattern": "^https://(?:www\\.)?worldbank\\.org/en/news/press-release/\\d{4}/.+",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "iea-news",
+      "name": "国际能源署新闻",
+      "region": "国际",
+      "topics": ["global-economy-politics", "digital-economy", "ai"],
+      "tier": "S",
+      "kind": "international-organization",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.iea.org/news",
+        "allowedHosts": ["www.iea.org", "iea.org"],
+        "linkPattern": "^https://(?:www\\.)?iea\\.org/news/.+",
+        "excludeLinkPattern": "^https://(?:www\\.)?iea\\.org/news/?(?:\\?.*)?$",
+        "maxItems": 40
+      }
+    },
+    {
+      "id": "bbc-world",
+      "name": "英国广播公司世界新闻",
+      "region": "国际",
+      "topics": ["global-economy-politics"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "allowedHosts": ["feeds.bbci.co.uk", "www.bbc.co.uk", "www.bbc.com"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "ap-world",
+      "name": "美联社国际新闻",
+      "region": "国际",
+      "topics": ["global-economy-politics"],
+      "tier": "A",
+      "kind": "authoritative-media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://apnews.com/hub/world-news",
+        "allowedHosts": ["apnews.com"],
+        "linkPattern": "^https://apnews\\.com/article/.+",
+        "maxItems": 30
+      }
+    }
+  ]
+}
