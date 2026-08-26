@@ -48,6 +48,12 @@ function writeFailure(outputDirectory, runId, phase, error, context = {}) {
   return target;
 }
 
+function assertPublishableEditorialResult(result) {
+  if (Array.isArray(result && result.events) && result.events.length > 0) return result;
+  const rejectedCount = Array.isArray(result && result.audit && result.audit.rejected) ? result.audit.rejected.length : 0;
+  throw new Error(`确定性编辑校验未留下可投递内容（拒绝${rejectedCount}条）。`);
+}
+
 async function runDaily(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const date = options.date || beijingDate();
@@ -113,7 +119,10 @@ async function runDaily(options = {}) {
 
     phase = 'editorial-validation';
     const result = runEditorialPipeline(generated.briefing);
-    if (result.audit.rejected.length > 0) throw new Error(`确定性编辑校验拒绝${result.audit.rejected.length}条内容。`);
+    // 单条质量问题只应剔除该条内容；只要仍有合格事件，就继续生成晨报。
+    // 先落盘审计信息，使全部拒绝时也能在私有运行产物中查看原因。
+    writeJsonAtomic(path.join(outputDirectory, `briefing-${date}.audit.json`), { ...result.audit, review: generated.review });
+    assertPublishableEditorialResult(result);
 
     phase = 'artifact-finalization';
     const finalized = await finalizeArtifacts(result, { root, outputDirectory, runId, date, review: generated.review, send: options.send === true });
@@ -208,4 +217,4 @@ async function finalizeArtifacts(result, options) {
   return status;
 }
 
-module.exports = { beijingDate, finalizeArtifacts, projectPath, purgeDetailCache, runDaily, runWeeklyCase, trimDiscoveryForWindow, writeFailure };
+module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, projectPath, purgeDetailCache, runDaily, runWeeklyCase, trimDiscoveryForWindow, writeFailure };
