@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { assertPublishableEditorialResult, monthlyBudgetForRun, summarizeModelUsage } = require('../src/runtime.cjs');
+const { isModelInvocationAllowed } = require('../src/model-window.cjs');
 
 test('部分内容被编辑校验拒绝时，保留合格内容继续生成', () => {
   const result = { events: [{ title: '合格事件' }], audit: { rejected: [{ title: '不合格事件', reasons: ['缺少来源'] }] } };
@@ -34,4 +35,11 @@ test('硬停止期限内的月度预算为零', () => {
   const environment = { MONTHLY_AI_BUDGET_CNY: '10', AI_HARD_STOP_UNTIL: '2026-09-01T00:00:00+08:00' };
   assert.equal(monthlyBudgetForRun(new Date('2026-08-31T15:00:00Z'), environment), 0);
   assert.equal(monthlyBudgetForRun(new Date('2026-09-01T00:00:00Z'), environment), 10);
+});
+
+test('模型调用仅允许在北京时间23:00至08:30', () => {
+  assert.equal(isModelInvocationAllowed(new Date('2026-08-26T14:59:00Z')), false); // 22:59
+  assert.equal(isModelInvocationAllowed(new Date('2026-08-26T15:00:00Z')), true); // 23:00
+  assert.equal(isModelInvocationAllowed(new Date('2026-08-27T00:30:00Z')), true); // 08:30
+  assert.equal(isModelInvocationAllowed(new Date('2026-08-27T00:31:00Z')), false); // 08:31
 });

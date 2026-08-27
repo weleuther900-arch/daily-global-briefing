@@ -4,6 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, generatorPrompts, isClearlyBenignReviewIssue, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
 
+const offPeakNow = new Date('2026-08-26T15:15:00Z'); // 北京时间23:15
+
 test('未配置密钥时模型调用保持关闭', async () => {
   await assert.rejects(() => callStructured({ provider: 'openai', apiKey: '', systemPrompt: 's', userPrompt: 'u', schemaName: 'x', schema: { type: 'object' } }), /模型调用保持关闭/);
 });
@@ -14,7 +16,7 @@ test('结构化调用使用Responses API、关闭存储并解析输出', async (
     request = { url, options, body: JSON.parse(options.body) };
     return { ok: true, status: 200, json: async () => ({ id: 'resp_test', output: [{ content: [{ type: 'output_text', text: '{"passed":true}' }] }], usage: { input_tokens: 10, output_tokens: 5 } }) };
   };
-  const result = await callStructured({ provider: 'openai', apiKey: 'test', fetchImpl, model: 'gpt-5-mini', systemPrompt: '系统', userPrompt: '用户', schemaName: 'test', schema: { type: 'object', additionalProperties: false, required: ['passed'], properties: { passed: { type: 'boolean' } } }, maxOutputTokens: 20 });
+  const result = await callStructured({ provider: 'openai', apiKey: 'test', fetchImpl, now: offPeakNow, model: 'gpt-5-mini', systemPrompt: '系统', userPrompt: '用户', schemaName: 'test', schema: { type: 'object', additionalProperties: false, required: ['passed'], properties: { passed: { type: 'boolean' } } }, maxOutputTokens: 20 });
   assert.equal(request.url, 'https://api.openai.com/v1/responses');
   assert.equal(request.body.store, false);
   assert.equal(request.body.text.format.strict, true);
@@ -27,12 +29,25 @@ test('DeepSeek生成调用使用JSON模式并关闭思考模式', async () => {
     request = { url, body: JSON.parse(options.body) };
     return { ok: true, status: 200, json: async () => ({ id: 'ds_test', choices: [{ message: { content: '{"passed":true}' } }], usage: { prompt_tokens: 10, completion_tokens: 5 } }) };
   };
-  const result = await callStructured({ provider: 'deepseek', apiKey: 'test', fetchImpl, model: 'deepseek-v4-flash', systemPrompt: '系统', userPrompt: '用户', schemaName: 'test', schema: { type: 'object' }, maxOutputTokens: 20 });
+  const result = await callStructured({ provider: 'deepseek', apiKey: 'test', fetchImpl, now: offPeakNow, model: 'deepseek-v4-flash', systemPrompt: '系统', userPrompt: '用户', schemaName: 'test', schema: { type: 'object' }, maxOutputTokens: 20 });
   assert.equal(request.url, 'https://api.deepseek.com/chat/completions');
   assert.deepEqual(request.body.response_format, { type: 'json_object' });
   assert.deepEqual(request.body.thinking, { type: 'disabled' });
   assert.match(request.body.messages[0].content, /JSON Schema/);
   assert.deepEqual(result.parsed, { passed: true });
+});
+
+test('窗口外模型调用不会连接服务商', async () => {
+  let requested = false;
+  await assert.rejects(
+    () => callStructured({
+      provider: 'deepseek', apiKey: 'test', now: new Date('2026-08-27T00:31:00Z'),
+      fetchImpl: async () => { requested = true; throw new Error('不应连接'); },
+      systemPrompt: '系统', userPrompt: '用户', schemaName: 'test', schema: { type: 'object' }
+    }),
+    (error) => error.code === 'MODEL_WINDOW_CLOSED'
+  );
+  assert.equal(requested, false);
 });
 
 test('DeepSeek返回损坏JSON时只重试一次并要求完整重写', async () => {
@@ -42,7 +57,7 @@ test('DeepSeek返回损坏JSON时只重试一次并要求完整重写', async ()
     const content = requests.length === 1 ? '{"passed":' : '{"passed":true}';
     return { ok: true, status: 200, json: async () => ({ id: `ds_retry_${requests.length}`, choices: [{ message: { content } }], usage: { prompt_tokens: 10, completion_tokens: 5 } }) };
   };
-  const result = await callStructured({ provider: 'deepseek', apiKey: 'test', fetchImpl, model: 'deepseek-v4-flash', systemPrompt: '系统', userPrompt: '用户', schemaName: 'test', schema: { type: 'object' }, maxOutputTokens: 20 });
+  const result = await callStructured({ provider: 'deepseek', apiKey: 'test', fetchImpl, now: offPeakNow, model: 'deepseek-v4-flash', systemPrompt: '系统', userPrompt: '用户', schemaName: 'test', schema: { type: 'object' }, maxOutputTokens: 20 });
   assert.deepEqual(result.parsed, { passed: true });
   assert.equal(requests.length, 2);
   assert.match(requests[1].body.messages[0].content, /重新从头输出/);

@@ -13,6 +13,7 @@ const { renderHtml, renderPlainText } = require('./render.cjs');
 const { buildMimeMessage, sendWithRetry } = require('./mime.cjs');
 const { generateBusinessCase, renderBusinessCase, renderBusinessCaseText } = require('./case.cjs');
 const { acquireLock, readJson, recordRun, releaseLock, updateSentState } = require('./state.cjs');
+const { isModelInvocationAllowed } = require('./model-window.cjs');
 
 function projectPath(root, value) {
   const resolved = path.resolve(root, value);
@@ -105,6 +106,13 @@ async function runDaily(options = {}) {
       return status;
     }
 
+    // 定时任务或人工运行即使在窗口外启动，也必须在任何模型请求前正常停止。
+    if (mode !== 'scan' && !options.fixturePath && options.validateOnly !== true && !isModelInvocationAllowed()) {
+      const status = { runId, status: 'model-window-stopped', date, mode, sent: false, completedAt: new Date().toISOString() };
+      recordRun(path.join(stateDirectory, 'runs.json'), status);
+      return status;
+    }
+
     if (mode === 'case') {
       phase = 'weekly-case';
       return await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, monthlyBudgetCny, send: options.send === true });
@@ -166,6 +174,11 @@ async function runDaily(options = {}) {
     if (finalized.sent) updateSentState(sentStatePath, result.events);
     return finalized;
   } catch (error) {
+    if (error && error.code === 'MODEL_WINDOW_CLOSED') {
+      const status = { runId, status: 'model-window-stopped', date, mode, phase, sent: false, completedAt: new Date().toISOString() };
+      recordRun(path.join(stateDirectory, 'runs.json'), status);
+      return status;
+    }
     const failurePath = writeFailure(outputDirectory, runId, phase, error);
     // 用户要求运行故障仅保留在私有运行记录中，不发送故障邮件。
     recordRun(path.join(stateDirectory, 'runs.json'), { runId, status: 'failed', phase, failurePath, failureNotified: false, completedAt: new Date().toISOString() });

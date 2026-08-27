@@ -1,6 +1,7 @@
 'use strict';
 
 const { appendCost, assertBudget, assertDailyTokenBudget, calculateCost, estimateTokens } = require('./cost.cjs');
+const { assertModelInvocationAllowed } = require('./model-window.cjs');
 
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 
@@ -90,6 +91,7 @@ async function callOpenAiStructured(options) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const apiKey = options.apiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('未配置OPENAI_API_KEY，模型调用保持关闭。');
+  assertModelInvocationAllowed(options.now);
   const model = options.model || process.env.OPENAI_MODEL || 'gpt-5-mini';
   const requestBody = {
     model,
@@ -140,6 +142,8 @@ async function callDeepSeekStructured(options) {
   // tighter instruction; both calls are independently checked and recorded against budget.
   let parseError = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    // 每一轮（包括损坏 JSON 的修复轮）都重新检查，不能跨过 08:30 再发起请求。
+    assertModelInvocationAllowed(options.now);
     const repairInstruction = attempt === 0 ? '' : '\n上一份输出不是有效JSON。重新从头输出一个完整、可解析的JSON对象；不要复述或修补上一份文本。';
     const requestBody = {
       model,
