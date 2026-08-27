@@ -95,11 +95,21 @@ jobs:
         run: |
           if [ "${{ steps.runtime.outputs.mode }}" = "layout-test" ]; then
             ARGS=()
-            if [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then ARGS+=(--send); fi
+            if [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then
+              echo "MAIL_SEND_GATE=enabled"
+              ARGS+=(--send)
+            else
+              echo "MAIL_SEND_GATE=disabled"
+            fi
             node scripts/send-layout-test.cjs "${ARGS[@]}"
             exit 0
           fi
           ARGS=(--mode "${{ steps.runtime.outputs.mode }}")
           if [ -n "${{ steps.runtime.outputs.date }}" ]; then ARGS+=(--date "${{ steps.runtime.outputs.date }}"); fi
-          if [ "${{ steps.runtime.outputs.mode }}" != "scan" ] && [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then ARGS+=(--send); fi
+          if [ "${{ steps.runtime.outputs.mode }}" != "scan" ] && [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then
+            echo "MAIL_SEND_GATE=enabled"
+            ARGS+=(--send)
+          else
+            echo "MAIL_SEND_GATE=disabled"
+          fi
           node scripts/run-daily.cjs "${ARGS[@]}"

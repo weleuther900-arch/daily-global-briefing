@@ -13,6 +13,7 @@ function foldBase64(value) {
 
 function buildMimeMessage(options) {
   const boundary = `briefing_${crypto.createHash('sha256').update(`${options.date}|${options.subject}`).digest('hex').slice(0, 24)}`;
+  const traceId = String(options.traceId || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 120);
   const headers = [
     `From: ${encodeHeader(options.senderName)} <${options.from}>`,
     `To: <${options.to}>`,
@@ -22,7 +23,8 @@ function buildMimeMessage(options) {
     'MIME-Version: 1.0',
     `Content-Type: multipart/alternative; boundary="${boundary}"`,
     'X-Priority: 1',
-    'Importance: High'
+    'Importance: High',
+    ...(traceId ? [`X-Daily-Global-Briefing-Trace: ${traceId}`] : [])
   ];
   const parts = [
     `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${foldBase64(options.text)}`,
@@ -173,11 +175,16 @@ async function sendMimeViaGmail(mime, options = {}) {
     session.write('DATA\r\n');
     assertSmtpResponse(await session.readResponse(), [354], '正文准备');
     session.write(`${dotStuff(mime)}\r\n.\r\n`);
-    assertSmtpResponse(await session.readResponse(), [250], '邮件提交');
+    const submissionResponse = await session.readResponse();
+    assertSmtpResponse(submissionResponse, [250], '邮件提交');
     session.write('QUIT\r\n');
     assertSmtpResponse(await session.readResponse(), [221], '退出');
     session.close();
-    return { status: 250 };
+    return {
+      status: smtpResponseCode(submissionResponse),
+      // 仅保存服务器已受理的简短回执，便于私有运行记录追踪；不含账号或邮件正文。
+      submission: String(submissionResponse).replaceAll(/\s+/g, ' ').slice(0, 280)
+    };
   } catch (error) {
     session.close();
     throw error;

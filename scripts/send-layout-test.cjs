@@ -50,16 +50,19 @@ async function main() {
     from: PROJECT_CONFIG.senderAddress,
     to: PROJECT_CONFIG.recipientAddress,
     html,
-    text: plainTextFromHtml(html)
+    text: plainTextFromHtml(html),
+    messageId: `layout-${process.env.GITHUB_RUN_ID || options.date}`,
+    traceId: `layout-${process.env.GITHUB_RUN_ID || options.date}`
   });
   const outputDirectory = path.join(root, 'output');
   fs.mkdirSync(outputDirectory, { recursive: true });
   fs.writeFileSync(path.join(outputDirectory, `layout-test-${options.date}.eml`), mime, 'utf8');
   if (options.send) {
+    console.log('MAIL_DELIVERY_ATTEMPT=started');
     const result = await sendWithRetry(mime, { enabled: true });
-    console.log(`LAYOUT_TEST_SENT attempts=${result.attempts} smtp_status=${result.status}`);
+    console.log(`MAIL_DELIVERY_ACCEPTED smtp_status=${result.status} attempts=${result.attempts}`);
   } else {
-    console.log('LAYOUT_TEST_READY send=false');
+    console.log('MAIL_DELIVERY_SKIPPED=send-disabled');
   }
 }
 

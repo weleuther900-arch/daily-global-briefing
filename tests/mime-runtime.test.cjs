@@ -10,12 +10,13 @@ const { acquireLock, releaseLock } = require('../src/state.cjs');
 const { beijingDate, trimDiscoveryForWindow } = require('../src/runtime.cjs');
 
 test('邮件文件同时包含HTML和纯文本且中文标题编码', () => {
-  const mime = buildMimeMessage({ date: '2026-08-17', subject: '[全球晨报] 2026-08-17', senderName: '全球晨报', from: 'briefing@example.invalid', to: 'briefing@example.invalid', text: '正文', html: '<p>正文</p>', sentAt: new Date('2026-08-17T00:00:00Z'), messageId: 'test' });
+  const mime = buildMimeMessage({ date: '2026-08-17', subject: '[全球晨报] 2026-08-17', senderName: '全球晨报', from: 'briefing@example.invalid', to: 'briefing@example.invalid', text: '正文', html: '<p>正文</p>', sentAt: new Date('2026-08-17T00:00:00Z'), messageId: 'test', traceId: 'test-run-1' });
   assert.match(mime, /multipart\/alternative/);
   assert.match(mime, /text\/plain/);
   assert.match(mime, /text\/html/);
   assert.match(mime, /briefing@example\.invalid/);
   assert.match(mime, /Importance: High/);
+  assert.match(mime, /X-Daily-Global-Briefing-Trace: test-run-1/);
   assert.doesNotMatch(mime, /Subject: \[全球晨报\]/);
 });
 

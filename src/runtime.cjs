@@ -213,15 +213,21 @@ async function runWeeklyCase(options) {
   const html = renderBusinessCase(generated.content, options.date);
   const text = renderBusinessCaseText(generated.content, options.date);
   const subject = `[商业案例] ${generated.content.title}`;
-  const mime = buildMimeMessage({ date: options.date, subject, senderName: PROJECT_CONFIG.senderName, from: PROJECT_CONFIG.senderAddress, to: PROJECT_CONFIG.recipientAddress, html, text });
+  const traceId = `case-${options.runId}`;
+  const mime = buildMimeMessage({ date: options.date, subject, senderName: PROJECT_CONFIG.senderName, from: PROJECT_CONFIG.senderAddress, to: PROJECT_CONFIG.recipientAddress, html, text, messageId: traceId, traceId });
   const base = `business-case-${options.date}`;
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.html`), html, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.txt`), text, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.eml`), mime, 'utf8');
   writeJsonAtomic(path.join(options.outputDirectory, `${base}.audit.json`), { review: generated.review, sourceCount: generated.content.sources.length, modelUsage: summarizeModelUsage(generated.costs) });
   let sent = false;
-  if (options.send) { await sendWithRetry(mime, { enabled: true }); sent = true; }
-  const status = { runId: options.runId, status: 'complete', kind: 'business-case', date: options.date, sent, completedAt: new Date().toISOString() };
+  let delivery;
+  if (options.send) {
+    const submission = await sendWithRetry(mime, { enabled: true });
+    sent = true;
+    delivery = { traceId, smtpStatus: submission.status, attempts: submission.attempts, submission: submission.submission, acceptedAt: new Date().toISOString() };
+  }
+  const status = { runId: options.runId, status: 'complete', kind: 'business-case', date: options.date, sent, delivery, completedAt: new Date().toISOString() };
   recordRun(path.join(options.stateDirectory, 'runs.json'), status);
   return status;
 }
@@ -241,18 +247,21 @@ async function finalizeArtifacts(result, options) {
   const html = renderHtml(result);
   const text = renderPlainText(result);
   const subject = `[全球晨报] ${options.date}`;
-  const mime = buildMimeMessage({ date: options.date, subject, senderName: PROJECT_CONFIG.senderName, from: PROJECT_CONFIG.senderAddress, to: PROJECT_CONFIG.recipientAddress, html, text });
+  const traceId = `briefing-${options.runId}`;
+  const mime = buildMimeMessage({ date: options.date, subject, senderName: PROJECT_CONFIG.senderName, from: PROJECT_CONFIG.senderAddress, to: PROJECT_CONFIG.recipientAddress, html, text, messageId: traceId, traceId });
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.html`), html, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.txt`), text, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.eml`), mime, 'utf8');
   writeJsonAtomic(path.join(options.outputDirectory, `${base}.selected.json`), { briefingDate: result.briefingDate, coverageStart: result.window.start.toISOString(), coverageEnd: result.window.end.toISOString(), events: result.events });
   writeJsonAtomic(path.join(options.outputDirectory, `${base}.audit.json`), { ...result.audit, review: options.review, modelUsage: options.modelUsage });
   let sent = false;
+  let delivery;
   if (options.send) {
-    await sendWithRetry(mime, { enabled: true });
+    const submission = await sendWithRetry(mime, { enabled: true });
     sent = true;
+    delivery = { traceId, smtpStatus: submission.status, attempts: submission.attempts, submission: submission.submission, acceptedAt: new Date().toISOString() };
   }
-  const status = { runId: options.runId, status: 'complete', date: options.date, eventCount: result.events.length, sent, completedAt: new Date().toISOString() };
+  const status = { runId: options.runId, status: 'complete', date: options.date, eventCount: result.events.length, sent, delivery, completedAt: new Date().toISOString() };
   recordRun(path.join(options.root, 'state/runs.json'), status);
   return status;
 }
