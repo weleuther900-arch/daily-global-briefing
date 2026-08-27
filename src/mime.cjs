@@ -45,7 +45,9 @@ async function sendWithRetry(mime, options = {}) {
       return { ...(await send(mime, options)), attempts: attempt };
     } catch (error) {
       lastError = error;
-      if (attempt < attempts) await (options.delay || ((ms) => new Promise((resolve) => setTimeout(resolve, ms))))(delayMs);
+      // 认证凭据不正确时，重复登录不会改变结果；直接反馈，避免晨报被无意义重试拖延。
+      const permanentAuthenticationFailure = /Gmail SMTP在(?:账号认证|应用密码认证)阶段返回异常/.test(String(error && error.message));
+      if (attempt < attempts && !permanentAuthenticationFailure) await (options.delay || ((ms) => new Promise((resolve) => setTimeout(resolve, ms))))(delayMs);
     }
   }
   throw new Error(`邮件连续${attempts}次发送失败：${lastError.message}`);

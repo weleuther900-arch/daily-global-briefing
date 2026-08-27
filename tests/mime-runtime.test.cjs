@@ -32,6 +32,26 @@ test('正式发信失败后最多重试两次', async () => {
   assert.equal(calls, 3);
 });
 
+test('Gmail应用密码被拒绝时不进行无效重试', async () => {
+  const previous = process.env.ENABLE_EMAIL_SEND;
+  process.env.ENABLE_EMAIL_SEND = 'true';
+  let calls = 0;
+  await assert.rejects(
+    () => sendWithRetry('mime', {
+      enabled: true,
+      delayMs: 0,
+      sendImpl: async () => {
+        calls += 1;
+        throw new Error('Gmail SMTP在应用密码认证阶段返回异常：534 5.7.9 Application-specific password required');
+      }
+    }),
+    /Application-specific password required/
+  );
+  if (previous === undefined) delete process.env.ENABLE_EMAIL_SEND;
+  else process.env.ENABLE_EMAIL_SEND = previous;
+  assert.equal(calls, 1);
+});
+
 test('只有代码参数和环境开关同时启用才允许触发发信', async () => {
   await assert.rejects(() => sendMimeViaGmail('x', { enabled: false }), /发送开关未同时启用/);
 });
