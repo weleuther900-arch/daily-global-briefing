@@ -265,7 +265,14 @@ async function finalizeArtifacts(result, options) {
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.html`), html, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.txt`), text, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.eml`), mime, 'utf8');
-  writeJsonAtomic(path.join(options.outputDirectory, `${base}.selected.json`), { briefingDate: result.briefingDate, coverageStart: result.window.start.toISOString(), coverageEnd: result.window.end.toISOString(), events: result.events });
+  writeJsonAtomic(path.join(options.outputDirectory, `${base}.selected.json`), {
+    briefingDate: result.briefingDate,
+    coverageStart: result.window.start.toISOString(),
+    coverageEnd: result.window.end.toISOString(),
+    events: result.events,
+    // 私有补发必须能还原完整邮件，包含不涉及来源事实的独立思考段。
+    thinking: result.thinking || null
+  });
   writeJsonAtomic(path.join(options.outputDirectory, `${base}.audit.json`), { ...result.audit, review: options.review, modelUsage: options.modelUsage });
   let sent = false;
   let delivery;

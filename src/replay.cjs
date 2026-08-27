@@ -22,8 +22,8 @@ function replayResult(selected) {
     briefingDate: selected.briefingDate,
     window: getCoverageWindow(selected.briefingDate),
     events: selected.events,
-    // 已归档选题不保存独立思考段，补发时只重建原有新闻正文，不调用模型补写。
-    thinking: null
+    // 使用归档的原文，不调用模型补写或改写。
+    thinking: selected.thinking || null
   };
 }
 
