@@ -98,9 +98,16 @@ async function runDaily(options = {}) {
     const prior = readJson(path.join(stateDirectory, 'runs.json'), { runs: [] }).runs.find((item) => item.runId === runId && item.status === 'complete' && item.sent === true);
     if (prior) return { ...prior, idempotentSkip: true };
 
+    const monthlyBudgetCny = monthlyBudgetForRun();
+    if (mode !== 'scan' && !options.fixturePath && monthlyBudgetCny <= 0) {
+      const status = { runId, status: 'budget-stopped', date, mode, sent: false, completedAt: new Date().toISOString() };
+      recordRun(path.join(stateDirectory, 'runs.json'), status);
+      return status;
+    }
+
     if (mode === 'case') {
       phase = 'weekly-case';
-      return await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, send: options.send === true });
+      return await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, monthlyBudgetCny, send: options.send === true });
     }
     if (options.fixturePath) {
       phase = 'fixture-build';
@@ -139,7 +146,7 @@ async function runDaily(options = {}) {
     phase = 'generation-and-review';
     const generated = await generateAndReview(candidates, {
       ledgerPath: path.join(stateDirectory, 'cost-ledger.json'),
-      monthlyBudgetCny: monthlyBudgetForRun(),
+      monthlyBudgetCny,
       budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
       dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
       usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
@@ -198,7 +205,7 @@ async function runWeeklyCase(options) {
   if (materials.length === 0) throw new Error('过去七天的案例候选原文均无法公开读取。');
   const generated = await generateBusinessCase(materials, {
     ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'),
-    monthlyBudgetCny: monthlyBudgetForRun(),
+    monthlyBudgetCny: options.monthlyBudgetCny ?? monthlyBudgetForRun(),
     budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
     dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
     usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
