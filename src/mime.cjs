@@ -36,7 +36,8 @@ function buildMimeMessage(options) {
 
 async function sendWithRetry(mime, options = {}) {
   const attempts = Number(options.attempts) || 3;
-  const delayMs = options.delayMs == null ? 10 * 60 * 1000 : Number(options.delayMs);
+  // 邮件投递失败应尽快给出可操作诊断，避免一次晨报在 10 分钟间隔中长时间无反馈。
+  const delayMs = options.delayMs == null ? 10 * 1000 : Number(options.delayMs);
   const send = options.sendImpl || sendMimeViaGmail;
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
