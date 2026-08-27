@@ -46,7 +46,11 @@ async function sendWithRetry(mime, options = {}) {
     } catch (error) {
       lastError = error;
       // 认证凭据不正确时，重复登录不会改变结果；直接反馈，避免晨报被无意义重试拖延。
-      const permanentAuthenticationFailure = /Gmail SMTP在(?:账号认证|应用密码认证)阶段返回异常/.test(String(error && error.message));
+      const errorMessage = String(error && error.message);
+      const permanentAuthenticationFailure = errorMessage.includes('账号认证阶段')
+        || errorMessage.includes('应用密码认证阶段')
+        || errorMessage.includes('Application-specific password required');
+      if (permanentAuthenticationFailure) throw error;
       if (attempt < attempts && !permanentAuthenticationFailure) await (options.delay || ((ms) => new Promise((resolve) => setTimeout(resolve, ms))))(delayMs);
     }
   }
