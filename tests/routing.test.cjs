@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { clusterCandidates, detectHardExclusion, filterPreviouslySent, prepareModelCandidates, routeCategory } = require('../src/routing.cjs');
+const { clusterCandidates, detectHardExclusion, filterPreviouslySent, MAX_MODEL_SOURCE_EXCERPT_CHARS, prepareModelCandidates, routeCategory } = require('../src/routing.cjs');
 
 function detail(overrides = {}) {
   return {
@@ -30,12 +30,15 @@ test('例行工作会议排除，正式监管决定仍保留给编辑判断', ()
   assert.equal(detectHardExclusion('监管部门正式发布实施方案并作出监管决定'), null);
 });
 
-test('相似候选聚类并合并来源', () => {
+test('相似候选聚类最多保留两个来源，并限制模型原文长度', () => {
   const base = prepareModelCandidates({ items: [detail()] }, '2026-08-17').candidates[0];
   const second = { ...base, title: '人工智能模型推出企业推理服务', sources: [{ ...base.sources[0], url: 'https://example.com/b' }] };
-  const result = clusterCandidates([base, second]);
+  const third = { ...base, title: '人工智能模型正式推出企业推理服务', sources: [{ ...base.sources[0], url: 'https://example.com/c' }] };
+  const result = clusterCandidates([base, second, third]);
   assert.equal(result.length, 1);
   assert.equal(result[0].sources.length, 2);
+  const long = prepareModelCandidates({ items: [detail({ text: '甲'.repeat(MAX_MODEL_SOURCE_EXCERPT_CHARS + 100) })] }, '2026-08-17');
+  assert.equal(long.candidates[0].sources[0].excerpt.length, MAX_MODEL_SOURCE_EXCERPT_CHARS);
 });
 
 test('十四日发送历史阻止相同事件再次进入模型', () => {

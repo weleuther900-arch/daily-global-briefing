@@ -54,6 +54,26 @@ function assertPublishableEditorialResult(result) {
   throw new Error(`确定性编辑校验未留下可投递内容（拒绝${rejectedCount}条）。`);
 }
 
+function summarizeModelUsage(costs = []) {
+  const byModel = {};
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cny = 0;
+  for (const cost of costs) {
+    const model = String(cost.model || 'unknown');
+    const value = byModel[model] || { calls: 0, inputTokens: 0, outputTokens: 0, cny: 0 };
+    value.calls += 1;
+    value.inputTokens += Number(cost.inputTokens || 0);
+    value.outputTokens += Number(cost.outputTokens || 0);
+    value.cny += Number(cost.cny || 0);
+    byModel[model] = value;
+    inputTokens += Number(cost.inputTokens || 0);
+    outputTokens += Number(cost.outputTokens || 0);
+    cny += Number(cost.cny || 0);
+  }
+  return { calls: costs.length, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cny, byModel };
+}
+
 async function runDaily(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const date = options.date || beijingDate();
@@ -113,6 +133,7 @@ async function runDaily(options = {}) {
     const generated = await generateAndReview(candidates, {
       ledgerPath: path.join(stateDirectory, 'cost-ledger.json'),
       monthlyBudgetCny: Number(process.env.MONTHLY_AI_BUDGET_CNY || 10),
+      dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
       usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
     });
     writeJsonAtomic(path.join(outputDirectory, `review-${runId}.json`), generated.review);
@@ -121,11 +142,12 @@ async function runDaily(options = {}) {
     const result = runEditorialPipeline(generated.briefing);
     // 单条质量问题只应剔除该条内容；只要仍有合格事件，就继续生成晨报。
     // 先落盘审计信息，使全部拒绝时也能在私有运行产物中查看原因。
-    writeJsonAtomic(path.join(outputDirectory, `briefing-${date}.audit.json`), { ...result.audit, review: generated.review });
+    const modelUsage = summarizeModelUsage(generated.costs);
+    writeJsonAtomic(path.join(outputDirectory, `briefing-${date}.audit.json`), { ...result.audit, review: generated.review, modelUsage });
     assertPublishableEditorialResult(result);
 
     phase = 'artifact-finalization';
-    const finalized = await finalizeArtifacts(result, { root, outputDirectory, runId, date, review: generated.review, send: options.send === true });
+    const finalized = await finalizeArtifacts(result, { root, outputDirectory, runId, date, review: generated.review, modelUsage, send: options.send === true });
     if (finalized.sent) updateSentState(sentStatePath, result.events);
     return finalized;
   } catch (error) {
@@ -162,13 +184,15 @@ async function runWeeklyCase(options) {
   }
   const details = await enrichDiscoveryItems({ sources: [...bySource.values()] }, registry, { cacheDirectory: path.join(options.root, '.cache/details'), concurrency: 4 });
   const materials = details.items.filter((item) => item.detailStatus === 'ready' && item.access === 'open').map((item) => ({
-    title: item.title, publishedAt: item.publishedAt, text: item.text.slice(0, 14000),
+    title: item.title, publishedAt: item.publishedAt, text: item.text.slice(0, 4000),
     sources: [{ organization: item.sourceName, title: item.title, url: item.url }]
-  }));
+  })).slice(0, 4);
   if (materials.length === 0) throw new Error('过去七天的案例候选原文均无法公开读取。');
   const generated = await generateBusinessCase(materials, {
     ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'),
-    monthlyBudgetCny: Number(process.env.MONTHLY_AI_BUDGET_CNY || 10), usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
+    monthlyBudgetCny: Number(process.env.MONTHLY_AI_BUDGET_CNY || 10),
+    dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
+    usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
   });
   const html = renderBusinessCase(generated.content, options.date);
   const text = renderBusinessCaseText(generated.content, options.date);
@@ -178,7 +202,7 @@ async function runWeeklyCase(options) {
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.html`), html, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.txt`), text, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.eml`), mime, 'utf8');
-  writeJsonAtomic(path.join(options.outputDirectory, `${base}.audit.json`), { review: generated.review, sourceCount: generated.content.sources.length });
+  writeJsonAtomic(path.join(options.outputDirectory, `${base}.audit.json`), { review: generated.review, sourceCount: generated.content.sources.length, modelUsage: summarizeModelUsage(generated.costs) });
   let sent = false;
   if (options.send) { await sendWithRetry(mime, { enabled: true }); sent = true; }
   const status = { runId: options.runId, status: 'complete', kind: 'business-case', date: options.date, sent, completedAt: new Date().toISOString() };
@@ -206,7 +230,7 @@ async function finalizeArtifacts(result, options) {
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.txt`), text, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.eml`), mime, 'utf8');
   writeJsonAtomic(path.join(options.outputDirectory, `${base}.selected.json`), { briefingDate: result.briefingDate, coverageStart: result.window.start.toISOString(), coverageEnd: result.window.end.toISOString(), events: result.events });
-  writeJsonAtomic(path.join(options.outputDirectory, `${base}.audit.json`), { ...result.audit, review: options.review });
+  writeJsonAtomic(path.join(options.outputDirectory, `${base}.audit.json`), { ...result.audit, review: options.review, modelUsage: options.modelUsage });
   let sent = false;
   if (options.send) {
     await sendWithRetry(mime, { enabled: true });
@@ -217,4 +241,4 @@ async function finalizeArtifacts(result, options) {
   return status;
 }
 
-module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, projectPath, purgeDetailCache, runDaily, runWeeklyCase, trimDiscoveryForWindow, writeFailure };
+module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };

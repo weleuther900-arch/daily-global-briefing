@@ -1,6 +1,6 @@
 'use strict';
 
-const { appendCost, assertBudget, calculateCost, estimateTokens } = require('./cost.cjs');
+const { appendCost, assertBudget, assertDailyTokenBudget, calculateCost, estimateTokens } = require('./cost.cjs');
 
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 
@@ -97,7 +97,10 @@ async function callOpenAiStructured(options) {
     text: { format: { type: 'json_schema', name: options.schemaName, strict: true, schema: options.schema } }
   };
   const estimated = calculateCost(model, estimateTokens(JSON.stringify(requestBody.input)), requestBody.max_output_tokens, options.usdCnyRate);
-  if (options.ledgerPath) assertBudget(options.ledgerPath, estimated, options.monthlyBudgetCny);
+  if (options.ledgerPath) {
+    assertBudget(options.ledgerPath, estimated, options.monthlyBudgetCny);
+    assertDailyTokenBudget(options.ledgerPath, estimated, options.dailyTokenBudget);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 120000);
   let payload;
@@ -144,7 +147,10 @@ async function callDeepSeekStructured(options) {
       ]
     };
     const estimated = calculateCost(model, estimateTokens(JSON.stringify(requestBody.messages)), requestBody.max_tokens, options.usdCnyRate);
-    if (options.ledgerPath) assertBudget(options.ledgerPath, estimated, options.monthlyBudgetCny);
+    if (options.ledgerPath) {
+      assertBudget(options.ledgerPath, estimated, options.monthlyBudgetCny);
+      assertDailyTokenBudget(options.ledgerPath, estimated, options.dailyTokenBudget);
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs || 120000);
     let payload;
@@ -214,7 +220,7 @@ function modelCandidatePriority(candidate) {
   return strongestTier * 10 + Number(candidate.relevanceScore || 0) * 3 + Math.min(sources.length, 3) + Math.min(primaryCount, 2);
 }
 
-function selectModelCandidates(candidateResult, limit = 8) {
+function selectModelCandidates(candidateResult, limit = 5) {
   const selected = [...(candidateResult.candidates || [])]
     .sort((left, right) => {
       const priority = modelCandidatePriority(right) - modelCandidatePriority(left);
@@ -260,12 +266,18 @@ function candidateSubsetForEvent(candidateResult, event) {
 }
 
 async function generateAndReview(candidateResult, options = {}) {
-  const common = { fetchImpl: options.fetchImpl, ledgerPath: options.ledgerPath, monthlyBudgetCny: options.monthlyBudgetCny ?? 10, usdCnyRate: options.usdCnyRate ?? 7.2 };
-  const selectedCandidates = selectModelCandidates(candidateResult, options.maxCandidates || 8);
+  const common = {
+    fetchImpl: options.fetchImpl,
+    ledgerPath: options.ledgerPath,
+    monthlyBudgetCny: options.monthlyBudgetCny ?? 10,
+    dailyTokenBudget: options.dailyTokenBudget ?? Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
+    usdCnyRate: options.usdCnyRate ?? 7.2
+  };
+  const selectedCandidates = selectModelCandidates(candidateResult, options.maxCandidates ?? 5);
   const generatedCalls = [];
-  for (const candidates of splitBatches(selectedCandidates.candidates, options.batchSize || 4)) {
+  for (const candidates of splitBatches(selectedCandidates.candidates, options.batchSize ?? 3)) {
     const batch = { ...selectedCandidates, candidates, candidateCount: candidates.length };
-    generatedCalls.push(await callStructured({ ...common, apiKey: options.generatorApiKey || options.apiKey, provider: options.generatorProvider || process.env.BRIEFING_GENERATOR_PROVIDER || 'deepseek', model: options.generatorModel || process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash', ...generatorPrompts(batch), schemaName: 'daily_briefing', schema: briefingSchema(), maxOutputTokens: options.maxOutputTokens || 6000 }));
+    generatedCalls.push(await callStructured({ ...common, apiKey: options.generatorApiKey || options.apiKey, provider: options.generatorProvider || process.env.BRIEFING_GENERATOR_PROVIDER || 'deepseek', model: options.generatorModel || process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash', ...generatorPrompts(batch), schemaName: 'daily_briefing', schema: briefingSchema(), maxOutputTokens: options.maxOutputTokens ?? 3500 }));
   }
   const generatedBriefing = {
     briefingDate: selectedCandidates.briefingDate,
@@ -285,7 +297,7 @@ async function generateAndReview(candidateResult, options = {}) {
       continue;
     }
     const eventBriefing = { ...generatedBriefing, candidates: [event] };
-    const reviewCall = await callStructured({ ...common, apiKey: options.reviewerApiKey || options.apiKey, provider: review.provider, model: review.model, ...reviewerPrompts(eventCandidates, eventBriefing), schemaName: 'daily_briefing_event_review', schema: reviewSchema(), maxOutputTokens: 800 });
+    const reviewCall = await callStructured({ ...common, apiKey: options.reviewerApiKey || options.apiKey, provider: review.provider, model: review.model, ...reviewerPrompts(eventCandidates, eventBriefing), schemaName: 'daily_briefing_event_review', schema: reviewSchema(), maxOutputTokens: options.reviewMaxOutputTokens ?? 400 });
     reviewCalls.push(reviewCall);
     const blocking = (reviewCall.parsed.issues || []).filter((issue) => issue.severity === 'blocking' && !isClearlyBenignReviewIssue(issue));
     if (reviewCall.parsed.passed || blocking.length === 0) retained.push(event);

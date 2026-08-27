@@ -28,9 +28,19 @@ function monthKey(date = new Date()) {
   return date.toISOString().slice(0, 7);
 }
 
+function dayKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
 function getMonthSpend(ledger, month = monthKey()) {
   return (ledger.entries || []).filter((entry) => entry.month === month)
     .reduce((total, entry) => total + Number(entry.cny || 0), 0);
+}
+
+function getDayTokenSpend(ledger, day = dayKey()) {
+  return (ledger.entries || [])
+    .filter((entry) => dayKey(new Date(entry.recordedAt || 0)) === day)
+    .reduce((total, entry) => total + Number(entry.inputTokens || 0) + Number(entry.outputTokens || 0), 0);
 }
 
 function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 10) {
@@ -42,10 +52,20 @@ function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 10) {
   return { spentCny: spent, remainingAfterProjectedCny: monthlyBudgetCny - spent - projectedCost.cny };
 }
 
+function assertDailyTokenBudget(ledgerPath, projectedCost, dailyTokenBudget = 150000) {
+  const ledger = readJson(ledgerPath, { entries: [] });
+  const spent = getDayTokenSpend(ledger);
+  const projected = Number(projectedCost.inputTokens || 0) + Number(projectedCost.outputTokens || 0);
+  if (spent + projected > dailyTokenBudget) {
+    throw new Error(`Token门禁拒绝调用：当日已用${spent} Token，本次上限${projected} Token，预算${dailyTokenBudget} Token。`);
+  }
+  return { spentTokens: spent, remainingAfterProjectedTokens: dailyTokenBudget - spent - projected };
+}
+
 function appendCost(ledgerPath, entry) {
   const ledger = readJson(ledgerPath, { entries: [] });
   const value = { ...entry, month: entry.month || monthKey(new Date(entry.recordedAt || Date.now())) };
   writeJsonAtomic(ledgerPath, { updatedAt: new Date().toISOString(), entries: [...(ledger.entries || []), value] });
 }
 
-module.exports = { MODEL_PRICES_USD_PER_MILLION, appendCost, assertBudget, calculateCost, estimateTokens, getMonthSpend, monthKey };
+module.exports = { MODEL_PRICES_USD_PER_MILLION, appendCost, assertBudget, assertDailyTokenBudget, calculateCost, dayKey, estimateTokens, getDayTokenSpend, getMonthSpend, monthKey };

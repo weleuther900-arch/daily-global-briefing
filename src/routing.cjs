@@ -3,6 +3,9 @@
 const crypto = require('node:crypto');
 const { getCoverageWindow, jaccardSimilarity } = require('./pipeline.cjs');
 
+const MAX_MODEL_SOURCES_PER_EVENT = 2;
+const MAX_MODEL_SOURCE_EXCERPT_CHARS = 3500;
+
 const KEYWORDS = Object.freeze({
   ai: [
     '人工智能', '大模型', '模型', '推理', '训练', '智能体', '多模态', '算力', 'gpu', 'ai ', ' ai',
@@ -90,7 +93,7 @@ function makeRoutedCandidate(detail) {
       url: detail.url,
       publishedAt: detail.publishedAt,
       language: detail.language,
-      excerpt: detail.text.slice(0, 12000),
+      excerpt: detail.text.slice(0, MAX_MODEL_SOURCE_EXCERPT_CHARS),
       textHash: detail.textHash
     }],
     hasUntrustedInstructions: detail.hasUntrustedInstructions
@@ -101,7 +104,7 @@ function mergeClusters(left, right) {
   const seen = new Set();
   const sources = [];
   for (const source of [...left.sources, ...right.sources]) {
-    if (!seen.has(source.url)) {
+    if (!seen.has(source.url) && sources.length < MAX_MODEL_SOURCES_PER_EVENT) {
       seen.add(source.url);
       sources.push(source);
     }
@@ -178,6 +181,8 @@ function filterPreviouslySent(candidateResult, sentState, retentionDays = 14) {
 
 module.exports = {
   KEYWORDS,
+  MAX_MODEL_SOURCE_EXCERPT_CHARS,
+  MAX_MODEL_SOURCES_PER_EVENT,
   clusterCandidates,
   detectHardExclusion,
   filterPreviouslySent,

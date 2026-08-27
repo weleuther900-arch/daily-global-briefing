@@ -75,6 +75,13 @@ test('模型候选按来源等级和相关度收敛，并分批生成', () => {
   assert.equal(splitBatches(selected.candidates, 1).length, 2);
 });
 
+test('默认最多向模型提交五个候选', () => {
+  const candidates = Array.from({ length: 6 }, (_, index) => ({
+    title: `候选${index}`, relevanceScore: index, publishedAt: `2026-08-2${index}T00:00:00Z`, sources: [{ tier: 'A', kind: 'official' }]
+  }));
+  assert.equal(selectModelCandidates({ candidates }).candidateCount, 5);
+});
+
 test('复核仅剔除存在实质证据问题的事件，保留条件性分析', () => {
   const briefing = { candidates: [{ title: '保留' }, { title: '剔除' }] };
   const conditional = { eventIndex: 0, severity: 'blocking', problem: '“分析上，若需求上升则成本可能增加。”属于分析性内容。' };

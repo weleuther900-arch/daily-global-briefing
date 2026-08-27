@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { appendCost, assertBudget, calculateCost, estimateTokens, getMonthSpend } = require('../src/cost.cjs');
+const { appendCost, assertBudget, assertDailyTokenBudget, calculateCost, estimateTokens, getDayTokenSpend, getMonthSpend } = require('../src/cost.cjs');
 
 test('GPT-5 mini费用按照输入输出分别计算', () => {
   const cost = calculateCost('gpt-5-mini', 1_000_000, 1_000_000, 7.2);
@@ -26,4 +26,12 @@ test('月度费用门禁在调用前阻止超额', () => {
   appendCost(ledger, { cny: 9.8, recordedAt: new Date().toISOString() });
   assert.equal(getMonthSpend(JSON.parse(fs.readFileSync(ledger, 'utf8'))) >= 9.8, true);
   assert.throws(() => assertBudget(ledger, { cny: 0.3 }, 10), /费用门禁拒绝调用/);
+});
+
+test('每日Token门禁在调用前阻止超额', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dgb-token-'));
+  const ledger = path.join(directory, 'ledger.json');
+  appendCost(ledger, { inputTokens: 120000, outputTokens: 10000, recordedAt: new Date().toISOString() });
+  assert.equal(getDayTokenSpend(JSON.parse(fs.readFileSync(ledger, 'utf8'))), 130000);
+  assert.throws(() => assertDailyTokenBudget(ledger, { inputTokens: 15000, outputTokens: 10000 }, 150000), /Token门禁拒绝调用/);
 });
