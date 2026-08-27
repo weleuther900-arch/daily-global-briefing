@@ -19,8 +19,13 @@ on:
           - final
           - case
           - layout-test
+          - resend
       briefing_date:
         description: 晨报日期，可留空
+        required: false
+        type: string
+      source_run_id:
+        description: 补发时的原始 Actions 运行编号
         required: false
         type: string
       allow_send:
@@ -31,6 +36,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: daily-global-briefing
@@ -73,22 +79,35 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
             echo "date=${{ inputs.briefing_date }}" >> "$GITHUB_OUTPUT"
+            echo "source_run_id=${{ inputs.source_run_id }}" >> "$GITHUB_OUTPUT"
             echo "manual_send=${{ inputs.allow_send }}" >> "$GITHUB_OUTPUT"
           # GitHub 的 schedule 任务可能在计划时刻后才被调度。按触发它的 cron
           # 条目判断模式，不能按运行器实际启动的时钟判断，否则正式任务会误降为巡检。
           elif [ "${{ github.event.schedule }}" = "10 15 * * 0" ]; then
             echo "mode=case" >> "$GITHUB_OUTPUT"
             echo "date=" >> "$GITHUB_OUTPUT"
+            echo "source_run_id=" >> "$GITHUB_OUTPUT"
             echo "manual_send=true" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "12 23 * * *" ]; then
             echo "mode=final" >> "$GITHUB_OUTPUT"
             echo "date=" >> "$GITHUB_OUTPUT"
+            echo "source_run_id=" >> "$GITHUB_OUTPUT"
             echo "manual_send=true" >> "$GITHUB_OUTPUT"
           else
             echo "mode=scan" >> "$GITHUB_OUTPUT"
             echo "date=" >> "$GITHUB_OUTPUT"
+            echo "source_run_id=" >> "$GITHUB_OUTPUT"
             echo "manual_send=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: 下载待补发的私有晨报
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'resend' && inputs.source_run_id != '' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: briefing-run-${{ inputs.source_run_id }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: replay-input
 
       - name: 执行只读巡检或正式晨报
         shell: bash
@@ -102,6 +121,21 @@ jobs:
               echo "MAIL_SEND_GATE=disabled"
             fi
             node scripts/send-layout-test.cjs "${ARGS[@]}"
+            exit 0
+          fi
+          if [ "${{ steps.runtime.outputs.mode }}" = "resend" ]; then
+            if [ -z "${{ steps.runtime.outputs.source_run_id }}" ]; then
+              echo "RESEND_FAILED 缺少source_run_id" >&2
+              exit 1
+            fi
+            ARGS=(--input replay-input --source-run "${{ steps.runtime.outputs.source_run_id }}")
+            if [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then
+              echo "MAIL_SEND_GATE=enabled"
+              ARGS+=(--send)
+            else
+              echo "MAIL_SEND_GATE=disabled"
+            fi
+            node scripts/resend-briefing.cjs "${ARGS[@]}"
             exit 0
           fi
           ARGS=(--mode "${{ steps.runtime.outputs.mode }}")
