@@ -28,6 +28,10 @@ test('月度费用门禁在调用前阻止超额', () => {
   assert.throws(() => assertBudget(ledger, { cny: 0.3 }, 10), /费用门禁拒绝调用/);
 });
 
+test('月度门禁使用预留成本而不是实际成本', () => {
+  assert.equal(getMonthSpend({ entries: [{ month: new Date().toISOString().slice(0, 7), cny: 0.5, budgetCny: 1 }] }), 1);
+});
+
 test('每日Token门禁在调用前阻止超额', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dgb-token-'));
   const ledger = path.join(directory, 'ledger.json');

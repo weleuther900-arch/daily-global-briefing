@@ -49,6 +49,7 @@ jobs:
       DEEPSEEK_REVIEW_MODEL: deepseek-v4-pro
       MONTHLY_AI_BUDGET_CNY: '10'
       DAILY_AI_TOKEN_BUDGET: '150000'
+      BUDGET_COST_SAFETY_MULTIPLIER: '2'
       USD_CNY_RATE: ${{ vars.USD_CNY_RATE || '7.2' }}
       ENABLE_EMAIL_SEND: ${{ secrets.ENABLE_EMAIL_SEND || 'false' }}
       GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}

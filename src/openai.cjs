@@ -80,6 +80,12 @@ function reviewerConfig(options = {}) {
   return { provider, model };
 }
 
+function budgetCost(cost, options = {}) {
+  const multiplier = Number(options.budgetCostMultiplier ?? (process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2));
+  const safeMultiplier = Number.isFinite(multiplier) && multiplier >= 1 ? multiplier : 2;
+  return { ...cost, budgetCny: cost.cny * safeMultiplier };
+}
+
 async function callOpenAiStructured(options) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   const apiKey = options.apiKey || process.env.OPENAI_API_KEY;
@@ -98,7 +104,7 @@ async function callOpenAiStructured(options) {
   };
   const estimated = calculateCost(model, estimateTokens(JSON.stringify(requestBody.input)), requestBody.max_output_tokens, options.usdCnyRate);
   if (options.ledgerPath) {
-    assertBudget(options.ledgerPath, estimated, options.monthlyBudgetCny);
+    assertBudget(options.ledgerPath, budgetCost(estimated, options), options.monthlyBudgetCny);
     assertDailyTokenBudget(options.ledgerPath, estimated, options.dailyTokenBudget);
   }
   const controller = new AbortController();
@@ -119,7 +125,7 @@ async function callOpenAiStructured(options) {
   const parsed = JSON.parse(extractOutputText(payload));
   const usage = payload.usage || {};
   const actual = calculateCost(model, Number(usage.input_tokens) || estimated.inputTokens, Number(usage.output_tokens) || 0, options.usdCnyRate);
-  if (options.ledgerPath) appendCost(options.ledgerPath, { ...actual, recordedAt: new Date().toISOString(), purpose: options.schemaName, responseId: payload.id || null });
+  if (options.ledgerPath) appendCost(options.ledgerPath, { ...actual, ...budgetCost(actual, options), recordedAt: new Date().toISOString(), purpose: options.schemaName, responseId: payload.id || null });
   return { parsed, provider: 'openai', responseId: payload.id || null, usage, cost: actual, requestBody };
 }
 
@@ -148,7 +154,7 @@ async function callDeepSeekStructured(options) {
     };
     const estimated = calculateCost(model, estimateTokens(JSON.stringify(requestBody.messages)), requestBody.max_tokens, options.usdCnyRate);
     if (options.ledgerPath) {
-      assertBudget(options.ledgerPath, estimated, options.monthlyBudgetCny);
+      assertBudget(options.ledgerPath, budgetCost(estimated, options), options.monthlyBudgetCny);
       assertDailyTokenBudget(options.ledgerPath, estimated, options.dailyTokenBudget);
     }
     const controller = new AbortController();
@@ -170,7 +176,7 @@ async function callDeepSeekStructured(options) {
     if (!output) throw new Error('DeepSeek接口没有返回JSON正文。');
     const usage = payload.usage || {};
     const actual = calculateCost(model, Number(usage.prompt_tokens) || estimated.inputTokens, Number(usage.completion_tokens) || 0, options.usdCnyRate);
-    if (options.ledgerPath) appendCost(options.ledgerPath, { ...actual, provider: 'deepseek', recordedAt: new Date().toISOString(), purpose: options.schemaName, responseId: payload.id || null, attempt: attempt + 1 });
+    if (options.ledgerPath) appendCost(options.ledgerPath, { ...actual, ...budgetCost(actual, options), provider: 'deepseek', recordedAt: new Date().toISOString(), purpose: options.schemaName, responseId: payload.id || null, attempt: attempt + 1 });
     try {
       const parsed = JSON.parse(output);
       return { parsed, provider: 'deepseek', responseId: payload.id || null, usage, cost: actual, requestBody };
@@ -270,6 +276,7 @@ async function generateAndReview(candidateResult, options = {}) {
     fetchImpl: options.fetchImpl,
     ledgerPath: options.ledgerPath,
     monthlyBudgetCny: options.monthlyBudgetCny ?? 10,
+    budgetCostMultiplier: options.budgetCostMultiplier ?? Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
     dailyTokenBudget: options.dailyTokenBudget ?? Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
     usdCnyRate: options.usdCnyRate ?? 7.2
   };
@@ -312,4 +319,4 @@ async function generateAndReview(candidateResult, options = {}) {
   };
 }
 
-module.exports = { auditGeneratedUrls, briefingSchema, callDeepSeekStructured, callOpenAiStructured, callStructured, candidateSubsetForEvent, extractOutputText, generateAndReview, generatorPrompts, isClearlyBenignReviewIssue, modelCandidatePriority, providerFor, removeEvidenceBlockedEvents, reviewerConfig, reviewSchema, reviewerPrompts, selectModelCandidates, splitBatches };
+module.exports = { auditGeneratedUrls, briefingSchema, budgetCost, callDeepSeekStructured, callOpenAiStructured, callStructured, candidateSubsetForEvent, extractOutputText, generateAndReview, generatorPrompts, isClearlyBenignReviewIssue, modelCandidatePriority, providerFor, removeEvidenceBlockedEvents, reviewerConfig, reviewSchema, reviewerPrompts, selectModelCandidates, splitBatches };

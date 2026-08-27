@@ -14,7 +14,9 @@ const MODEL_PRICES_USD_PER_MILLION = Object.freeze({
 
 function estimateTokens(value) {
   const text = typeof value === 'string' ? value : JSON.stringify(value);
-  return Math.max(1, Math.ceil(text.length / 2.6));
+  // DeepSeek 官方估算中中文字符约为 0.6 Token；取 0.8 作为调用前门禁的保守值，
+  // 为 JSON、标点和中英文混合输入预留余量。
+  return Math.max(1, Math.ceil(text.length * 0.8));
 }
 
 function calculateCost(model, inputTokens, outputTokens, usdCnyRate = 7.2) {
@@ -34,7 +36,7 @@ function dayKey(date = new Date()) {
 
 function getMonthSpend(ledger, month = monthKey()) {
   return (ledger.entries || []).filter((entry) => entry.month === month)
-    .reduce((total, entry) => total + Number(entry.cny || 0), 0);
+    .reduce((total, entry) => total + Number((entry.budgetCny ?? entry.cny) || 0), 0);
 }
 
 function getDayTokenSpend(ledger, day = dayKey()) {

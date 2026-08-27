@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { auditGeneratedUrls, callStructured, candidateSubsetForEvent, generatorPrompts, isClearlyBenignReviewIssue, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
+const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, generatorPrompts, isClearlyBenignReviewIssue, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
 
 test('未配置密钥时模型调用保持关闭', async () => {
   await assert.rejects(() => callStructured({ provider: 'openai', apiKey: '', systemPrompt: 's', userPrompt: 'u', schemaName: 'x', schema: { type: 'object' } }), /模型调用保持关闭/);
@@ -58,6 +58,10 @@ test('DeepSeek复核默认使用V4 Pro', () => {
   else process.env.BRIEFING_REVIEWER_PROVIDER = previousProvider;
   if (previousModel === undefined) delete process.env.DEEPSEEK_REVIEW_MODEL;
   else process.env.DEEPSEEK_REVIEW_MODEL = previousModel;
+});
+
+test('预算成本按安全倍数预留', () => {
+  assert.equal(budgetCost({ cny: 0.6 }, { budgetCostMultiplier: 2 }).budgetCny, 1.2);
 });
 
 test('模型候选按来源等级和相关度收敛，并分批生成', () => {

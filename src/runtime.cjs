@@ -74,6 +74,13 @@ function summarizeModelUsage(costs = []) {
   return { calls: costs.length, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cny, byModel };
 }
 
+function monthlyBudgetForRun(now = new Date(), environment = process.env) {
+  const hardStopUntil = Date.parse(environment.AI_HARD_STOP_UNTIL || '');
+  if (Number.isFinite(hardStopUntil) && now.getTime() < hardStopUntil) return 0;
+  const budget = Number(environment.MONTHLY_AI_BUDGET_CNY || 10);
+  return Number.isFinite(budget) && budget >= 0 ? budget : 10;
+}
+
 async function runDaily(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const date = options.date || beijingDate();
@@ -132,7 +139,8 @@ async function runDaily(options = {}) {
     phase = 'generation-and-review';
     const generated = await generateAndReview(candidates, {
       ledgerPath: path.join(stateDirectory, 'cost-ledger.json'),
-      monthlyBudgetCny: Number(process.env.MONTHLY_AI_BUDGET_CNY || 10),
+      monthlyBudgetCny: monthlyBudgetForRun(),
+      budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
       dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
       usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
     });
@@ -190,7 +198,8 @@ async function runWeeklyCase(options) {
   if (materials.length === 0) throw new Error('过去七天的案例候选原文均无法公开读取。');
   const generated = await generateBusinessCase(materials, {
     ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'),
-    monthlyBudgetCny: Number(process.env.MONTHLY_AI_BUDGET_CNY || 10),
+    monthlyBudgetCny: monthlyBudgetForRun(),
+    budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
     dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
     usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
   });
@@ -241,4 +250,4 @@ async function finalizeArtifacts(result, options) {
   return status;
 }
 
-module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };
+module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, monthlyBudgetForRun, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };
