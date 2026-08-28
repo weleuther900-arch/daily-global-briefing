@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { assertPublishableEditorialResult, monthlyBudgetForRun, summarizeModelUsage } = require('../src/runtime.cjs');
+const { assertPublishableEditorialResult, hasSentRunForDate, monthlyBudgetForRun, summarizeModelUsage } = require('../src/runtime.cjs');
 const { isModelInvocationAllowed } = require('../src/model-window.cjs');
 
 test('部分内容被编辑校验拒绝时，保留合格内容继续生成', () => {
@@ -42,4 +42,9 @@ test('模型调用仅允许在北京时间23:00至08:30', () => {
   assert.equal(isModelInvocationAllowed(new Date('2026-08-26T15:00:00Z')), true); // 23:00
   assert.equal(isModelInvocationAllowed(new Date('2026-08-27T00:30:00Z')), true); // 08:30
   assert.equal(isModelInvocationAllowed(new Date('2026-08-27T00:31:00Z')), false); // 08:31
+});
+
+test('夜间恢复任务只在当天未成功投递时运行', () => {
+  assert.equal(hasSentRunForDate({ runs: [{ date: '2026-08-28', sent: true }] }, '2026-08-28'), true);
+  assert.equal(hasSentRunForDate({ runs: [{ date: '2026-08-28', sent: false }] }, '2026-08-28'), false);
 });

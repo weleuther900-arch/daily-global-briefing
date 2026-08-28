@@ -12,7 +12,7 @@ function parse(argv) {
     else if (key === '--validate-only') options.validateOnly = true;
     else throw new Error(`未知参数：${key}`);
   }
-  if (!['scan', 'final', 'case'].includes(options.mode)) throw new Error('--mode只能是scan、final或case。');
+  if (!['scan', 'final', 'case', 'recovery'].includes(options.mode)) throw new Error('--mode只能是scan、final、case或recovery。');
   return options;
 }
 

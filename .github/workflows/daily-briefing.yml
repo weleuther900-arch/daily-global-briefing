@@ -4,8 +4,9 @@ on:
   schedule:
     - cron: '40 22 * * *'
     - cron: '23 7 * * *'
+    - cron: '5,20,35,50 23 * * *'
+    - cron: '5,20 0 * * *'
     - cron: '37 15 * * *'
-    - cron: '12 23 * * *'
     - cron: '10 15 * * 0'
   workflow_dispatch:
     inputs:
@@ -20,6 +21,7 @@ on:
           - case
           - layout-test
           - resend
+          - recovery
       briefing_date:
         description: 晨报日期，可留空
         required: false
@@ -88,8 +90,13 @@ jobs:
             echo "date=" >> "$GITHUB_OUTPUT"
             echo "source_run_id=" >> "$GITHUB_OUTPUT"
             echo "manual_send=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "12 23 * * *" ]; then
+          elif [ "${{ github.event.schedule }}" = "5,20,35,50 23 * * *" ] || [ "${{ github.event.schedule }}" = "5,20 0 * * *" ]; then
             echo "mode=final" >> "$GITHUB_OUTPUT"
+            echo "date=" >> "$GITHUB_OUTPUT"
+            echo "source_run_id=" >> "$GITHUB_OUTPUT"
+            echo "manual_send=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "37 15 * * *" ]; then
+            echo "mode=recovery" >> "$GITHUB_OUTPUT"
             echo "date=" >> "$GITHUB_OUTPUT"
             echo "source_run_id=" >> "$GITHUB_OUTPUT"
             echo "manual_send=true" >> "$GITHUB_OUTPUT"

@@ -82,6 +82,10 @@ function monthlyBudgetForRun(now = new Date(), environment = process.env) {
   return Number.isFinite(budget) && budget >= 0 ? budget : 10;
 }
 
+function hasSentRunForDate(runState, date) {
+  return (runState.runs || []).some((item) => item.date === date && item.sent === true);
+}
+
 async function runDaily(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const date = options.date || beijingDate();
@@ -96,8 +100,17 @@ async function runDaily(options = {}) {
   acquireLock(lockPath, { runId });
   let phase = 'start';
   try {
-    const prior = readJson(path.join(stateDirectory, 'runs.json'), { runs: [] }).runs.find((item) => item.runId === runId && item.status === 'complete' && item.sent === true);
+    const runStatePath = path.join(stateDirectory, 'runs.json');
+    const runState = readJson(runStatePath, { runs: [] });
+    const prior = runState.runs.find((item) => item.runId === runId && item.status === 'complete' && item.sent === true);
     if (prior) return { ...prior, idempotentSkip: true };
+
+    // 夜间恢复任务只在当天尚未成功投递时补跑，正常日不产生额外模型调用或邮件。
+    if (mode === 'recovery' && hasSentRunForDate(runState, date)) {
+      const status = { runId, status: 'recovery-skipped', date, mode, sent: false, completedAt: new Date().toISOString() };
+      recordRun(runStatePath, status);
+      return status;
+    }
 
     const monthlyBudgetCny = monthlyBudgetForRun();
     if (mode !== 'scan' && !options.fixturePath && monthlyBudgetCny <= 0) {
@@ -286,4 +299,4 @@ async function finalizeArtifacts(result, options) {
   return status;
 }
 
-module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, monthlyBudgetForRun, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };
+module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, hasSentRunForDate, monthlyBudgetForRun, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };
