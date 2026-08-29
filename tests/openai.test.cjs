@@ -2,7 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, generatorPrompts, isClearlyBenignReviewIssue, recoverTruncatedBriefing, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
+const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, generateAndReview, generatorPrompts, isClearlyBenignReviewIssue, recoverTruncatedBriefing, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
+const { runEditorialPipeline } = require('../src/pipeline.cjs');
+const { renderPlainText } = require('../src/render.cjs');
 
 const offPeakNow = new Date('2026-08-26T15:15:00Z'); // 北京时间23:15
 
@@ -71,6 +73,39 @@ test('DeepSeek截断晨报JSON时只恢复已经完整闭合的事件', () => {
     candidates: [{ eventKey: 'a', title: '完整事件', sources: [] }],
     thinking: null
   });
+});
+
+test('截断的真实晨报输出仍可经过审校、编辑校验并进入邮件正文', async () => {
+  const source = {
+    organization: '测试机构', title: '正式更新', url: 'https://example.com/release', tier: 'S', access: 'open', isPrimary: true,
+    kind: 'official', publishedAt: '2026-08-28T22:30:00.000Z'
+  };
+  const event = {
+    eventKey: 'release-1', category: 'ai', title: '测试平台发布更新', conclusion: '更新改变了企业接入方式。',
+    publishedAt: source.publishedAt, editorialDecision: 'include', evidenceStatus: 'confirmed', evidenceNote: null,
+    includeReason: 'material-impact', exclusionFlags: [], tags: ['测试'],
+    importance: { scope: 1, magnitude: 1, duration: 1, relevance: 2, evidence: 2 },
+    sections: [{ title: '事实', paragraphs: ['测试机构发布了更新。'] }, { title: '影响', paragraphs: ['分析上，企业需评估迁移成本。'] }],
+    concepts: [], formula: null, dataTable: null, watch: [{ item: '采用情况', reason: '决定影响范围。' }],
+    sources: [{ organization: source.organization, title: source.title, url: source.url, tier: source.tier, access: source.access, isPrimary: true }],
+    criticalFacts: [{ claim: '测试机构发布了更新。', sourceUrls: [source.url] }]
+  };
+  const requests = [];
+  const fetchImpl = async (_url, request) => {
+    requests.push(JSON.parse(request.body));
+    const content = requests.length === 1
+      ? `{"briefingDate":"2026-08-29","candidates":[${JSON.stringify(event)},{"eventKey":"truncated`
+      : '{"passed":true,"issues":[]}';
+    return { ok: true, status: 200, json: async () => ({ id: `response-${requests.length}`, choices: [{ message: { content } }], usage: { prompt_tokens: 10, completion_tokens: 10 } }) };
+  };
+  const generated = await generateAndReview({ briefingDate: '2026-08-29', candidates: [{ ...event, sources: [source] }] }, {
+    apiKey: 'test', fetchImpl, now: offPeakNow, maxCandidates: 1, batchSize: 1
+  });
+  const result = runEditorialPipeline(generated.briefing);
+  assert.equal(requests.length, 2);
+  assert.equal(generated.briefing.candidates.length, 1);
+  assert.equal(result.events.length, 1);
+  assert.match(renderPlainText(result), /测试平台发布更新/);
 });
 
 test('DeepSeek复核默认使用V4 Pro', () => {

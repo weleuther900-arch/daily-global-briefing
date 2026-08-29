@@ -352,6 +352,7 @@ function candidateSubsetForEvent(candidateResult, event) {
 async function generateAndReview(candidateResult, options = {}) {
   const common = {
     fetchImpl: options.fetchImpl,
+    now: options.now,
     ledgerPath: options.ledgerPath,
     monthlyBudgetCny: options.monthlyBudgetCny ?? 10,
     budgetCostMultiplier: options.budgetCostMultiplier ?? Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
