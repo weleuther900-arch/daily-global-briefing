@@ -88,6 +88,10 @@ function hasSentRunForDate(runState, date) {
   return (runState.runs || []).some((item) => item.date === date && item.sent === true);
 }
 
+function getImpairedCoverageGroups(discovery) {
+  return (discovery.coverageGroups || []).filter((group) => group.status === 'impaired');
+}
+
 async function runDaily(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const date = options.date || beijingDate();
@@ -141,14 +145,28 @@ async function runDaily(options = {}) {
 
     phase = 'discovery';
     const registry = JSON.parse(fs.readFileSync(projectPath(root, 'config/sources.v1.json'), 'utf8'));
-    const discovery = await collectSources(registry, { cacheDirectory: projectPath(root, '.cache/discovery'), concurrency: 5 });
+    const sourceCollector = options.collectSources || collectSources;
+    const discovery = await sourceCollector(registry, { cacheDirectory: projectPath(root, '.cache/discovery'), concurrency: 5 });
     writeJsonAtomic(path.join(outputDirectory, `discovery-${runId}.json`), discovery);
-    const impaired = discovery.coverageGroups.filter((group) => group.status === 'impaired');
-    if (impaired.length) throw new Error(`来源覆盖不足：${impaired.map((group) => group.name).join('、')}。`);
+    const impaired = getImpairedCoverageGroups(discovery);
     if (options.mode === 'scan') {
-      const result = { runId, status: 'scan-complete', sourceCount: discovery.sourceCount, itemCount: discovery.itemCount, completedAt: new Date().toISOString() };
+      // 巡检的职责是记录瞬时来源健康状态，不能因单个来源网络波动制造 GitHub 失败告警。
+      const result = {
+        runId,
+        status: impaired.length ? 'scan-impaired' : 'scan-complete',
+        sourceCount: discovery.sourceCount,
+        itemCount: discovery.itemCount,
+        impairedCoverage: impaired.map((group) => ({ id: group.id, name: group.name, availableCount: group.availableCount, minimumAvailable: group.minimumAvailable })),
+        completedAt: new Date().toISOString()
+      };
       recordRun(path.join(stateDirectory, 'runs.json'), result);
       return result;
+    }
+    if (impaired.length) {
+      const error = new Error(`来源覆盖不足：${impaired.map((group) => group.name).join('、')}。`);
+      error.code = 'COVERAGE_INSUFFICIENT';
+      error.context = { impairedCoverage: impaired };
+      throw error;
     }
 
     phase = 'details';
@@ -200,11 +218,15 @@ async function runDaily(options = {}) {
     }
     // 服务商输出无法解析时已经尝试过一次完整重写。将诊断留在私有产物中，
     // 但不把可预期的供应商格式波动升级成 GitHub 的“任务失败”邮件。
-    if (error && ['MODEL_OUTPUT_INVALID', 'NO_PUBLISHABLE_CONTENT'].includes(error.code)) {
-      const failurePath = writeFailure(outputDirectory, runId, phase, error);
+    if (error && ['MODEL_OUTPUT_INVALID', 'NO_PUBLISHABLE_CONTENT', 'COVERAGE_INSUFFICIENT'].includes(error.code)) {
+      const failurePath = writeFailure(outputDirectory, runId, phase, error, error.context);
       const status = {
         runId,
-        status: error.code === 'MODEL_OUTPUT_INVALID' ? 'model-output-stopped' : 'content-stopped',
+        status: error.code === 'MODEL_OUTPUT_INVALID'
+          ? 'model-output-stopped'
+          : error.code === 'COVERAGE_INSUFFICIENT'
+            ? 'coverage-stopped'
+            : 'content-stopped',
         date,
         mode,
         phase,
@@ -322,4 +344,4 @@ async function finalizeArtifacts(result, options) {
   return status;
 }
 
-module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, hasSentRunForDate, monthlyBudgetForRun, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };
+module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };

@@ -2,7 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { assertPublishableEditorialResult, hasSentRunForDate, monthlyBudgetForRun, summarizeModelUsage } = require('../src/runtime.cjs');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { assertPublishableEditorialResult, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, runDaily, summarizeModelUsage } = require('../src/runtime.cjs');
 const { isModelInvocationAllowed } = require('../src/model-window.cjs');
 
 test('部分内容被编辑校验拒绝时，保留合格内容继续生成', () => {
@@ -47,4 +50,29 @@ test('模型调用仅允许在北京时间23:00至08:30', () => {
 test('夜间恢复任务只在当天未成功投递时运行', () => {
   assert.equal(hasSentRunForDate({ runs: [{ date: '2026-08-28', sent: true }] }, '2026-08-28'), true);
   assert.equal(hasSentRunForDate({ runs: [{ date: '2026-08-28', sent: false }] }, '2026-08-28'), false);
+});
+
+test('来源巡检将覆盖不足作为健康状态而不是运行异常', () => {
+  const impaired = getImpairedCoverageGroups({ coverageGroups: [
+    { id: 'healthy', status: 'available' },
+    { id: 'policy', status: 'impaired', availableCount: 3, minimumAvailable: 4 }
+  ] });
+  assert.deepEqual(impaired, [{ id: 'policy', status: 'impaired', availableCount: 3, minimumAvailable: 4 }]);
+});
+
+test('瞬时来源不足时巡检和正式任务均正常结束且不会发送邮件', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dgb-coverage-'));
+  fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'config', 'sources.v1.json'), JSON.stringify({ sources: [], coverageGroups: [] }));
+  const collectSources = async () => ({
+    sourceCount: 8,
+    itemCount: 100,
+    coverageGroups: [{ id: 'policy', name: '中国数字经济与宏观政策', status: 'impaired', availableCount: 3, minimumAvailable: 4 }]
+  });
+  const scan = await runDaily({ root, mode: 'scan', collectSources });
+  const final = await runDaily({ root, mode: 'final', validateOnly: true, collectSources });
+  assert.equal(scan.status, 'scan-impaired');
+  assert.equal(final.status, 'coverage-stopped');
+  assert.equal(scan.sent, undefined);
+  assert.equal(final.sent, false);
 });
