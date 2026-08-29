@@ -52,7 +52,9 @@ function writeFailure(outputDirectory, runId, phase, error, context = {}) {
 function assertPublishableEditorialResult(result) {
   if (Array.isArray(result && result.events) && result.events.length > 0) return result;
   const rejectedCount = Array.isArray(result && result.audit && result.audit.rejected) ? result.audit.rejected.length : 0;
-  throw new Error(`确定性编辑校验未留下可投递内容（拒绝${rejectedCount}条）。`);
+  const error = new Error(`确定性编辑校验未留下可投递内容（拒绝${rejectedCount}条）。`);
+  error.code = 'NO_PUBLISHABLE_CONTENT';
+  throw error;
 }
 
 function summarizeModelUsage(costs = []) {
@@ -157,7 +159,11 @@ async function runDaily(options = {}) {
     phase = 'candidate-routing';
     const sentStatePath = path.join(stateDirectory, 'sent-events.json');
     const candidates = filterPreviouslySent(prepareModelCandidates(details, date), readJson(sentStatePath, { events: [] }));
-    if (candidates.candidateCount === 0) throw new Error('本期没有通过质量门槛的候选内容，停止生成。');
+    if (candidates.candidateCount === 0) {
+      const error = new Error('本期没有通过质量门槛的候选内容，停止生成。');
+      error.code = 'NO_PUBLISHABLE_CONTENT';
+      throw error;
+    }
     if (options.validateOnly === true) {
       const status = { runId, status: 'validation-complete', date, candidateCount: candidates.candidateCount, rejectedCount: candidates.rejectedCount, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
@@ -189,6 +195,23 @@ async function runDaily(options = {}) {
   } catch (error) {
     if (error && error.code === 'MODEL_WINDOW_CLOSED') {
       const status = { runId, status: 'model-window-stopped', date, mode, phase, sent: false, completedAt: new Date().toISOString() };
+      recordRun(path.join(stateDirectory, 'runs.json'), status);
+      return status;
+    }
+    // 服务商输出无法解析时已经尝试过一次完整重写。将诊断留在私有产物中，
+    // 但不把可预期的供应商格式波动升级成 GitHub 的“任务失败”邮件。
+    if (error && ['MODEL_OUTPUT_INVALID', 'NO_PUBLISHABLE_CONTENT'].includes(error.code)) {
+      const failurePath = writeFailure(outputDirectory, runId, phase, error);
+      const status = {
+        runId,
+        status: error.code === 'MODEL_OUTPUT_INVALID' ? 'model-output-stopped' : 'content-stopped',
+        date,
+        mode,
+        phase,
+        sent: false,
+        failurePath,
+        completedAt: new Date().toISOString()
+      };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
       return status;
     }

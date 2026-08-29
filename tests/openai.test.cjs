@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, generatorPrompts, isClearlyBenignReviewIssue, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
+const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, generatorPrompts, isClearlyBenignReviewIssue, recoverTruncatedBriefing, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
 
 const offPeakNow = new Date('2026-08-26T15:15:00Z'); // 北京时间23:15
 
@@ -61,6 +61,16 @@ test('DeepSeek返回损坏JSON时只重试一次并要求完整重写', async ()
   assert.deepEqual(result.parsed, { passed: true });
   assert.equal(requests.length, 2);
   assert.match(requests[1].body.messages[0].content, /重新从头输出/);
+});
+
+test('DeepSeek截断晨报JSON时只恢复已经完整闭合的事件', () => {
+  const complete = JSON.stringify({ eventKey: 'a', title: '完整事件', sources: [] });
+  const output = `{"briefingDate":"2026-08-29","candidates":[${complete},{"eventKey":"未完成`;
+  assert.deepEqual(recoverTruncatedBriefing(output), {
+    briefingDate: '2026-08-29',
+    candidates: [{ eventKey: 'a', title: '完整事件', sources: [] }],
+    thinking: null
+  });
 });
 
 test('DeepSeek复核默认使用V4 Pro', () => {
