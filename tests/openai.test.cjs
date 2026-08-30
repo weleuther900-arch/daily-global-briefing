@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, generateAndReview, generatorPrompts, isClearlyBenignReviewIssue, recoverTruncatedBriefing, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
+const { auditGeneratedUrls, budgetCost, callStructured, candidateSubsetForEvent, compactCandidateResultForReview, generateAndReview, generatorPrompts, isClearlyBenignReviewIssue, recoverTruncatedBriefing, removeEvidenceBlockedEvents, reviewSchema, reviewerConfig, selectModelCandidates, splitBatches } = require('../src/openai.cjs');
 const { runEditorialPipeline } = require('../src/pipeline.cjs');
 const { renderPlainText } = require('../src/render.cjs');
 
@@ -139,11 +139,18 @@ test('模型候选按来源等级和相关度收敛，并分批生成', () => {
   assert.equal(splitBatches(selected.candidates, 1).length, 2);
 });
 
-test('默认最多向模型提交五个候选', () => {
+test('默认最多向模型提交两个候选，避免复核成本失控', () => {
   const candidates = Array.from({ length: 6 }, (_, index) => ({
     title: `候选${index}`, relevanceScore: index, publishedAt: `2026-08-2${index}T00:00:00Z`, sources: [{ tier: 'A', kind: 'official' }]
   }));
-  assert.equal(selectModelCandidates({ candidates }).candidateCount, 5);
+  assert.equal(selectModelCandidates({ candidates }).candidateCount, 2);
+});
+
+test('逐条复核证据摘录受长度上限约束', () => {
+  const compact = compactCandidateResultForReview({ briefingDate: '2026-08-29', candidates: [{
+    category: 'ai', title: '候选', publishedAt: '2026-08-28T22:00:00Z', sources: [{ url: 'https://example.com/a', excerpt: '甲'.repeat(2000) }]
+  }] });
+  assert.equal(compact.candidates[0].sources[0].excerpt.length, 900);
 });
 
 test('复核仅剔除存在实质证据问题的事件，保留条件性分析', () => {

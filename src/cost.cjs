@@ -26,12 +26,16 @@ function calculateCost(model, inputTokens, outputTokens, usdCnyRate = 7.2) {
   return { model, inputTokens, outputTokens, usd, cny: usd * usdCnyRate, usdCnyRate };
 }
 
+function beijingTimestamp(date = new Date()) {
+  return new Date(new Date(date).getTime() + 8 * 60 * 60 * 1000);
+}
+
 function monthKey(date = new Date()) {
-  return date.toISOString().slice(0, 7);
+  return beijingTimestamp(date).toISOString().slice(0, 7);
 }
 
 function dayKey(date = new Date()) {
-  return date.toISOString().slice(0, 10);
+  return beijingTimestamp(date).toISOString().slice(0, 10);
 }
 
 function getMonthSpend(ledger, month = monthKey()) {
@@ -49,7 +53,9 @@ function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 10) {
   const ledger = readJson(ledgerPath, { entries: [] });
   const spent = getMonthSpend(ledger);
   if (spent + projectedCost.cny > monthlyBudgetCny) {
-    throw new Error(`费用门禁拒绝调用：本月已用约${spent.toFixed(2)}元，本次上限约${projectedCost.cny.toFixed(2)}元，预算${monthlyBudgetCny.toFixed(2)}元。`);
+    const error = new Error(`费用门禁拒绝调用：本月已用约${spent.toFixed(2)}元，本次上限约${projectedCost.cny.toFixed(2)}元，预算${monthlyBudgetCny.toFixed(2)}元。`);
+    error.code = 'MONTHLY_BUDGET_EXCEEDED';
+    throw error;
   }
   return { spentCny: spent, remainingAfterProjectedCny: monthlyBudgetCny - spent - projectedCost.cny };
 }
@@ -59,7 +65,9 @@ function assertDailyTokenBudget(ledgerPath, projectedCost, dailyTokenBudget = 15
   const spent = getDayTokenSpend(ledger);
   const projected = Number(projectedCost.inputTokens || 0) + Number(projectedCost.outputTokens || 0);
   if (spent + projected > dailyTokenBudget) {
-    throw new Error(`Token门禁拒绝调用：当日已用${spent} Token，本次上限${projected} Token，预算${dailyTokenBudget} Token。`);
+    const error = new Error(`Token门禁拒绝调用：当日已用${spent} Token，本次上限${projected} Token，预算${dailyTokenBudget} Token。`);
+    error.code = 'DAILY_TOKEN_BUDGET_EXCEEDED';
+    throw error;
   }
   return { spentTokens: spent, remainingAfterProjectedTokens: dailyTokenBudget - spent - projected };
 }
@@ -70,4 +78,4 @@ function appendCost(ledgerPath, entry) {
   writeJsonAtomic(ledgerPath, { updatedAt: new Date().toISOString(), entries: [...(ledger.entries || []), value] });
 }
 
-module.exports = { MODEL_PRICES_USD_PER_MILLION, appendCost, assertBudget, assertDailyTokenBudget, calculateCost, dayKey, estimateTokens, getDayTokenSpend, getMonthSpend, monthKey };
+module.exports = { MODEL_PRICES_USD_PER_MILLION, appendCost, assertBudget, assertDailyTokenBudget, beijingTimestamp, calculateCost, dayKey, estimateTokens, getDayTokenSpend, getMonthSpend, monthKey };

@@ -4,7 +4,8 @@ const crypto = require('node:crypto');
 const { getCoverageWindow, jaccardSimilarity } = require('./pipeline.cjs');
 
 const MAX_MODEL_SOURCES_PER_EVENT = 2;
-const MAX_MODEL_SOURCE_EXCERPT_CHARS = 3500;
+// 晨报模型只需可核验的正文摘要；较长原文会在复核阶段成倍放大 Token 成本。
+const MAX_MODEL_SOURCE_EXCERPT_CHARS = 1200;
 
 const KEYWORDS = Object.freeze({
   ai: [

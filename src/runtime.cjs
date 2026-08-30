@@ -13,7 +13,7 @@ const { renderHtml, renderPlainText } = require('./render.cjs');
 const { buildMimeMessage, sendWithRetry } = require('./mime.cjs');
 const { generateBusinessCase, renderBusinessCase, renderBusinessCaseText } = require('./case.cjs');
 const { acquireLock, readJson, recordRun, releaseLock, updateSentState } = require('./state.cjs');
-const { isModelInvocationAllowed } = require('./model-window.cjs');
+const { isModelInvocationAllowed, isMorningBriefingReady } = require('./model-window.cjs');
 
 function projectPath(root, value) {
   const resolved = path.resolve(root, value);
@@ -94,7 +94,8 @@ function getImpairedCoverageGroups(discovery) {
 
 async function runDaily(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
-  const date = options.date || beijingDate();
+  const now = options.now || new Date();
+  const date = options.date || beijingDate(now);
   const mode = options.mode || 'final';
   const scanHour = String(new Date().getUTCHours()).padStart(2, '0');
   const runId = options.runId || `${date}-${mode === 'scan' ? `scan-${scanHour}` : mode}`;
@@ -118,7 +119,7 @@ async function runDaily(options = {}) {
       return status;
     }
 
-    const monthlyBudgetCny = monthlyBudgetForRun();
+    const monthlyBudgetCny = monthlyBudgetForRun(now);
     if (mode !== 'scan' && !options.fixturePath && monthlyBudgetCny <= 0) {
       const status = { runId, status: 'budget-stopped', date, mode, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
@@ -126,8 +127,14 @@ async function runDaily(options = {}) {
     }
 
     // 定时任务或人工运行即使在窗口外启动，也必须在任何模型请求前正常停止。
-    if (mode !== 'scan' && !options.fixturePath && options.validateOnly !== true && !isModelInvocationAllowed()) {
+    if (mode !== 'scan' && !options.fixturePath && options.validateOnly !== true && !isModelInvocationAllowed(now)) {
       const status = { runId, status: 'model-window-stopped', date, mode, sent: false, completedAt: new Date().toISOString() };
+      recordRun(path.join(stateDirectory, 'runs.json'), status);
+      return status;
+    }
+
+    if (mode === 'final' && options.requireMorningReadiness === true && !options.fixturePath && !isMorningBriefingReady(now)) {
+      const status = { runId, status: 'morning-window-not-ready', date, mode, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
       return status;
     }
@@ -218,7 +225,7 @@ async function runDaily(options = {}) {
     }
     // 服务商输出无法解析时已经尝试过一次完整重写。将诊断留在私有产物中，
     // 但不把可预期的供应商格式波动升级成 GitHub 的“任务失败”邮件。
-    if (error && ['MODEL_OUTPUT_INVALID', 'NO_PUBLISHABLE_CONTENT', 'COVERAGE_INSUFFICIENT'].includes(error.code)) {
+    if (error && ['MODEL_OUTPUT_INVALID', 'NO_PUBLISHABLE_CONTENT', 'COVERAGE_INSUFFICIENT', 'MONTHLY_BUDGET_EXCEEDED', 'DAILY_TOKEN_BUDGET_EXCEEDED'].includes(error.code)) {
       const failurePath = writeFailure(outputDirectory, runId, phase, error, error.context);
       const status = {
         runId,
@@ -226,7 +233,9 @@ async function runDaily(options = {}) {
           ? 'model-output-stopped'
           : error.code === 'COVERAGE_INSUFFICIENT'
             ? 'coverage-stopped'
-            : 'content-stopped',
+            : error.code === 'MONTHLY_BUDGET_EXCEEDED' || error.code === 'DAILY_TOKEN_BUDGET_EXCEEDED'
+              ? 'budget-stopped'
+              : 'content-stopped',
         date,
         mode,
         phase,

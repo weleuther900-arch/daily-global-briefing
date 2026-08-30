@@ -10,6 +10,7 @@ function parse(argv) {
     if (['--date', '--mode', '--fixture'].includes(key)) options[key.slice(2).replace('fixture', 'fixturePath')] = argv[++index];
     else if (key === '--send') options.send = true;
     else if (key === '--validate-only') options.validateOnly = true;
+    else if (key === '--require-morning-readiness') options.requireMorningReadiness = true;
     else throw new Error(`未知参数：${key}`);
   }
   if (!['scan', 'final', 'case', 'recovery'].includes(options.mode)) throw new Error('--mode只能是scan、final、case或recovery。');

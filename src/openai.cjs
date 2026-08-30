@@ -304,7 +304,7 @@ function modelCandidatePriority(candidate) {
   return strongestTier * 10 + Number(candidate.relevanceScore || 0) * 3 + Math.min(sources.length, 3) + Math.min(primaryCount, 2);
 }
 
-function selectModelCandidates(candidateResult, limit = 5) {
+function selectModelCandidates(candidateResult, limit = 2) {
   const selected = [...(candidateResult.candidates || [])]
     .sort((left, right) => {
       const priority = modelCandidatePriority(right) - modelCandidatePriority(left);
@@ -349,6 +349,58 @@ function candidateSubsetForEvent(candidateResult, event) {
   return { ...candidateResult, candidates, candidateCount: candidates.length };
 }
 
+function compactText(value, limit) {
+  const text = String(value || '');
+  return text.length > limit ? text.slice(0, limit) : text;
+}
+
+function compactSourcesForReview(sources = []) {
+  return sources.slice(0, 2).map((source) => ({
+    organization: source.organization,
+    title: compactText(source.title, 120),
+    url: source.url,
+    tier: source.tier,
+    access: source.access,
+    isPrimary: source.isPrimary,
+    publishedAt: source.publishedAt,
+    excerpt: compactText(source.excerpt, 900)
+  }));
+}
+
+// 逐条复核只需该事件的证据摘录与成稿要点。避免把完整网页摘录和冗长草稿重复
+// 带入每一次复核，造成 Token 放大并挤占晨报投递窗口。
+function compactCandidateResultForReview(candidateResult) {
+  const candidates = (candidateResult.candidates || []).slice(0, 1).map((candidate) => ({
+    category: candidate.category,
+    title: compactText(candidate.title, 120),
+    publishedAt: candidate.publishedAt,
+    sources: compactSourcesForReview(candidate.sources)
+  }));
+  return { briefingDate: candidateResult.briefingDate, candidates, candidateCount: candidates.length };
+}
+
+function compactGeneratedEventForReview(event) {
+  return {
+    eventKey: event.eventKey,
+    category: event.category,
+    title: compactText(event.title, 120),
+    conclusion: compactText(event.conclusion, 300),
+    publishedAt: event.publishedAt,
+    evidenceNote: event.evidenceNote ? compactText(event.evidenceNote, 240) : null,
+    includeReason: event.includeReason,
+    sections: (event.sections || []).slice(0, 2).map((section) => ({
+      title: compactText(section.title, 80),
+      paragraphs: (section.paragraphs || []).slice(0, 1).map((paragraph) => compactText(paragraph, 240))
+    })),
+    concepts: (event.concepts || []).slice(0, 2).map((concept) => ({ name: compactText(concept.name, 80), explanation: compactText(concept.explanation, 200) })),
+    formula: event.formula ? { symbol: compactText(event.formula.symbol, 120), text: compactText(event.formula.text, 200), notes: (event.formula.notes || []).slice(0, 2).map((note) => compactText(note, 120)) } : null,
+    dataTable: event.dataTable ? { headings: (event.dataTable.headings || []).slice(0, 4).map((value) => compactText(value, 60)), rows: (event.dataTable.rows || []).slice(0, 4).map((row) => row.slice(0, 4).map((value) => compactText(value, 100))) } : null,
+    watch: (event.watch || []).slice(0, 2).map((item) => ({ item: compactText(item.item, 120), reason: compactText(item.reason, 180) })),
+    sources: compactSourcesForReview(event.sources),
+    criticalFacts: (event.criticalFacts || []).slice(0, 3).map((fact) => ({ claim: compactText(fact.claim, 220), sourceUrls: (fact.sourceUrls || []).slice(0, 2) }))
+  };
+}
+
 async function generateAndReview(candidateResult, options = {}) {
   const common = {
     fetchImpl: options.fetchImpl,
@@ -359,7 +411,8 @@ async function generateAndReview(candidateResult, options = {}) {
     dailyTokenBudget: options.dailyTokenBudget ?? Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
     usdCnyRate: options.usdCnyRate ?? 7.2
   };
-  const selectedCandidates = selectModelCandidates(candidateResult, options.maxCandidates ?? 5);
+  // 两条高质量候选足以覆盖一封短晨报；更多候选会把来源摘录与逐条复核成本成倍放大。
+  const selectedCandidates = selectModelCandidates(candidateResult, options.maxCandidates ?? 2);
   const generatedCalls = [];
   // 单批最多两个事件，避免复杂架构在单次 JSON 输出中被服务商长度上限截断。
   for (const candidates of splitBatches(selectedCandidates.candidates, options.batchSize ?? 2)) {
@@ -383,8 +436,9 @@ async function generateAndReview(candidateResult, options = {}) {
       withheld.push(eventIndex);
       continue;
     }
-    const eventBriefing = { ...generatedBriefing, candidates: [event] };
-    const reviewCall = await callStructured({ ...common, apiKey: options.reviewerApiKey || options.apiKey, provider: review.provider, model: review.model, ...reviewerPrompts(eventCandidates, eventBriefing), schemaName: 'daily_briefing_event_review', schema: reviewSchema(), maxOutputTokens: options.reviewMaxOutputTokens ?? 400 });
+    const eventBriefing = { briefingDate: generatedBriefing.briefingDate, candidates: [compactGeneratedEventForReview(event)] };
+    const reviewEvidence = compactCandidateResultForReview(eventCandidates);
+    const reviewCall = await callStructured({ ...common, apiKey: options.reviewerApiKey || options.apiKey, provider: review.provider, model: review.model, ...reviewerPrompts(reviewEvidence, eventBriefing), schemaName: 'daily_briefing_event_review', schema: reviewSchema(), maxOutputTokens: options.reviewMaxOutputTokens ?? 400 });
     reviewCalls.push(reviewCall);
     if (reviewCall.recoveryReason === 'unparseable-event-review') {
       withheld.push(eventIndex);
@@ -408,4 +462,4 @@ async function generateAndReview(candidateResult, options = {}) {
   };
 }
 
-module.exports = { auditGeneratedUrls, briefingSchema, budgetCost, callDeepSeekStructured, callOpenAiStructured, callStructured, candidateSubsetForEvent, extractOutputText, generateAndReview, generatorPrompts, isClearlyBenignReviewIssue, modelCandidatePriority, providerFor, recoverTruncatedBriefing, removeEvidenceBlockedEvents, reviewerConfig, reviewSchema, reviewerPrompts, selectModelCandidates, splitBatches };
+module.exports = { auditGeneratedUrls, briefingSchema, budgetCost, callDeepSeekStructured, callOpenAiStructured, callStructured, candidateSubsetForEvent, compactCandidateResultForReview, compactGeneratedEventForReview, extractOutputText, generateAndReview, generatorPrompts, isClearlyBenignReviewIssue, modelCandidatePriority, providerFor, recoverTruncatedBriefing, removeEvidenceBlockedEvents, reviewerConfig, reviewSchema, reviewerPrompts, selectModelCandidates, splitBatches };

@@ -14,6 +14,14 @@ function isModelInvocationAllowed(now = new Date()) {
   return minute >= 23 * 60 || minute <= 8 * 60 + 30;
 }
 
+// 正式晨报的来源窗口在北京时间 07:00 截止。云端定时器可以提前唤醒，
+// 但不能因准点启动而在窗口尚未结束时提前生成；若该次触发被 GitHub 延迟，
+// 则只要实际启动仍落在 07:00—08:30，仍可正常完成。
+function isMorningBriefingReady(now = new Date()) {
+  const minute = beijingMinuteOfDay(now);
+  return minute >= 7 * 60 && minute <= 8 * 60 + 30;
+}
+
 function modelWindowError(now = new Date()) {
   const error = new Error('模型调用仅允许在北京时间23:00至08:30进行；本次未向模型服务商发起请求。');
   error.code = 'MODEL_WINDOW_CLOSED';
@@ -25,4 +33,4 @@ function assertModelInvocationAllowed(now = new Date()) {
   if (!isModelInvocationAllowed(now)) throw modelWindowError(now);
 }
 
-module.exports = { assertModelInvocationAllowed, beijingMinuteOfDay, isModelInvocationAllowed, modelWindowError };
+module.exports = { assertModelInvocationAllowed, beijingMinuteOfDay, isModelInvocationAllowed, isMorningBriefingReady, modelWindowError };

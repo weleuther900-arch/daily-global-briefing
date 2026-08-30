@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { assertPublishableEditorialResult, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, runDaily, summarizeModelUsage } = require('../src/runtime.cjs');
-const { isModelInvocationAllowed } = require('../src/model-window.cjs');
+const { isModelInvocationAllowed, isMorningBriefingReady } = require('../src/model-window.cjs');
 
 test('部分内容被编辑校验拒绝时，保留合格内容继续生成', () => {
   const result = { events: [{ title: '合格事件' }], audit: { rejected: [{ title: '不合格事件', reasons: ['缺少来源'] }] } };
@@ -45,6 +45,27 @@ test('模型调用仅允许在北京时间23:00至08:30', () => {
   assert.equal(isModelInvocationAllowed(new Date('2026-08-26T15:00:00Z')), true); // 23:00
   assert.equal(isModelInvocationAllowed(new Date('2026-08-27T00:30:00Z')), true); // 08:30
   assert.equal(isModelInvocationAllowed(new Date('2026-08-27T00:31:00Z')), false); // 08:31
+});
+
+test('云端提前触发只在北京时间07:00至08:30生成正式晨报', () => {
+  assert.equal(isMorningBriefingReady(new Date('2026-08-26T22:59:00Z')), false); // 06:59
+  assert.equal(isMorningBriefingReady(new Date('2026-08-26T23:00:00Z')), true); // 07:00
+  assert.equal(isMorningBriefingReady(new Date('2026-08-27T00:30:00Z')), true); // 08:30
+  assert.equal(isMorningBriefingReady(new Date('2026-08-27T00:31:00Z')), false); // 08:31
+});
+
+test('提前云端触发在来源窗口未结束时不采集、不调用模型', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dgb-early-'));
+  let collected = false;
+  const result = await runDaily({
+    root,
+    mode: 'final',
+    now: new Date('2026-08-26T19:00:00Z'), // 北京时间03:00
+    requireMorningReadiness: true,
+    collectSources: async () => { collected = true; return { coverageGroups: [] }; }
+  });
+  assert.equal(result.status, 'morning-window-not-ready');
+  assert.equal(collected, false);
 });
 
 test('夜间恢复任务只在当天未成功投递时运行', () => {
