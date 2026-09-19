@@ -100,7 +100,48 @@ function scoreEvent(event) {
     .reduce((total, key) => total + Math.max(0, Math.min(2, Number(dimensions[key]) || 0)), 0);
 }
 
-function validateEvent(event, window, config = PROJECT_CONFIG) {
+function buildCategoryCoverage(events, categoryCandidateCounts = {}, config = PROJECT_CONFIG) {
+  const categories = config.categories.map((category) => {
+    const eventCount = events.filter((event) => event.category === category.id).length;
+    const candidateCount = Math.max(0, Number(categoryCandidateCounts[category.id]) || 0);
+    const status = eventCount > 0 ? 'included' : candidateCount > 0 ? 'withheld' : 'no-qualified-candidate';
+    return { ...category, candidateCount, eventCount, status };
+  });
+  const includedCategoryCount = categories.filter((category) => category.eventCount > 0).length;
+  const totalCategoryCount = categories.length;
+  const percentage = totalCategoryCount === 0 ? 0 : Math.round(includedCategoryCount / totalCategoryCount * 100);
+  const coverage = {
+    categories,
+    includedCategoryCount,
+    totalCategoryCount,
+    formula: {
+      symbol: `有效栏目覆盖率 = ${includedCategoryCount} ÷ ${totalCategoryCount} = ${percentage}%`,
+      text: '通过来源、结构和独立证据审校的栏目数，占全部约定栏目的比例。',
+      notes: ['这是本期内部编辑指标，不是外部来源事实。']
+    },
+    dataTable: {
+      headings: ['约定栏目', '候选数', '本期状态'],
+      rows: categories.map((category) => [
+        category.name,
+        String(category.candidateCount),
+        category.status === 'included' ? `已收录${category.eventCount}条` : category.status === 'withheld' ? '候选未通过证据审校' : '无达到标准的候选'
+      ])
+    }
+  };
+  return { ...coverage, fallbackThinking: coverageThinking(coverage) };
+}
+
+function coverageThinking(coverage) {
+  return {
+    title: '先做可逆决策，还是先等待更多证据？',
+    scenario: '选择本期一条最可能影响你所在行业的事件。假设你负责该行业内一家中型公司的资源分配，且未来四周只能推进一项行动。',
+    decisionQuestion: '在信息仍不完整时，你会先用小规模试点换取学习，还是暂缓投入以保留资源？',
+    options: ['A. 设定预算上限和退出条件，启动可逆的小规模试点。', 'B. 暂缓投入，把资源留给证据更充分的机会。'],
+    checks: ['试点失败时的最大现金与时间损失。', '等待四周会失去的客户、渠道或技术窗口。', '下一条能改变选择的可验证证据。']
+  };
+}
+
+function validateEvent(event, window, config = PROJECT_CONFIG, options = {}) {
   const errors = [];
   const categoryIds = new Set(config.categories.map((category) => category.id));
 
@@ -112,7 +153,7 @@ function validateEvent(event, window, config = PROJECT_CONFIG) {
   const publishedAt = new Date(event.publishedAt);
   if (Number.isNaN(publishedAt.getTime())) {
     errors.push('publishedAt不是有效时间。');
-  } else if (publishedAt < window.start || publishedAt >= window.end) {
+  } else if (options.allowHistoricalSourceWindow !== true && (publishedAt < window.start || publishedAt >= window.end)) {
     errors.push('公开时间不在本期二十四小时窗口内。');
   }
 
@@ -148,6 +189,9 @@ function validateEvent(event, window, config = PROJECT_CONFIG) {
   const allText = collectStrings({
     title: event.title,
     conclusion: event.conclusion,
+    plainLanguage: event.plainLanguage,
+    impact: event.impact,
+    judgmentBoundary: event.judgmentBoundary,
     sections: event.sections,
     concepts: event.concepts,
     formula: event.formula,
@@ -211,7 +255,7 @@ function deduplicateEvents(events, config = PROJECT_CONFIG) {
   return { events: kept, duplicateLog };
 }
 
-function runEditorialPipeline(input, config = PROJECT_CONFIG) {
+function runEditorialPipeline(input, config = PROJECT_CONFIG, options = {}) {
   if (!input || typeof input !== 'object') throw new Error('输入文件必须是JSON对象。');
   if (collectStrings(input.thinking).join('\n').includes('*')) throw new Error('商业思考内容包含星号。');
   const window = getCoverageWindow(input.briefingDate, config);
@@ -219,7 +263,7 @@ function runEditorialPipeline(input, config = PROJECT_CONFIG) {
   const rejected = [];
 
   for (const candidate of input.candidates || []) {
-    const errors = validateEvent(candidate, window, config);
+    const errors = validateEvent(candidate, window, config, options);
     if (errors.length > 0) {
       rejected.push({ title: candidate && candidate.title ? candidate.title : '未命名候选', reasons: errors });
       continue;
@@ -243,11 +287,13 @@ function runEditorialPipeline(input, config = PROJECT_CONFIG) {
     return new Date(right.publishedAt) - new Date(left.publishedAt);
   });
 
+  const coverage = buildCategoryCoverage(deduplicated.events, input.categoryCandidateCounts, config);
   return {
     briefingDate: input.briefingDate,
     window,
     events: deduplicated.events,
-    thinking: input.thinking || null,
+    coverage,
+    thinking: input.thinking || coverage.fallbackThinking,
     audit: {
       candidateCount: (input.candidates || []).length,
       acceptedBeforeDedup: accepted.length,
@@ -261,6 +307,8 @@ function runEditorialPipeline(input, config = PROJECT_CONFIG) {
 module.exports = {
   canonicalizeTitle,
   canonicalizeUrl,
+  buildCategoryCoverage,
+  coverageThinking,
   createEventFingerprint,
   deduplicateEvents,
   formatBeijingDateTime,

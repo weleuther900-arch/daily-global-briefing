@@ -54,6 +54,10 @@ test('样例管线完成筛选、事实绑定和去重', () => {
   assert.equal(result.events[0].category, 'ai');
   assert.equal(result.events[1].category, 'digital-economy');
   assert.match(result.events[0].fingerprint, /^[a-f0-9]{20}$/);
+  assert.equal(result.coverage.categories.length, 5);
+  assert.match(result.coverage.formula.symbol, /有效栏目覆盖率/);
+  assert.equal(result.coverage.dataTable.rows.length, 5);
+  assert.ok(result.thinking);
 });
 
 test('HTML与纯文本包含相同事件，且深色模式使用纯黑底色', () => {
@@ -67,4 +71,24 @@ test('HTML与纯文本包含相同事件，且深色模式使用纯黑底色', (
   assert.ok(html.includes('@media (prefers-color-scheme:dark)'));
   assert.ok(html.includes('background:#000!important'));
   assert.ok(!html.includes('与项目设计方向一致'));
+  for (const category of ['人工智能', '数字经济', '中国经济与政策', '全球经济与政治', '开源与技术生态']) {
+    assert.ok(html.includes(category));
+    assert.ok(text.includes(category));
+  }
+  for (const value of ['核心判断', '大白话讲解', '相关影响', '判断边界', 'M = R − C', '验证变量', '三分钟商业思考']) {
+    assert.ok(html.includes(value));
+    assert.ok(text.includes(value));
+  }
+  assert.ok(!html.includes('本期覆盖与审校'));
+  assert.ok(!text.includes('本期覆盖与审校'));
+});
+
+test('受限历史专题可保留真实公开时间，其他证据门禁仍照常执行', () => {
+  const event = structuredClone(sample.candidates[0]);
+  event.publishedAt = '2026-02-04T00:00:00-08:00';
+  const window = getCoverageWindow('2026-09-01');
+  const errors = validateEvent(event, window, undefined, { allowHistoricalSourceWindow: true });
+  assert.ok(!errors.includes('公开时间不在本期二十四小时窗口内。'));
+  event.sources[0].access = 'paid';
+  assert.ok(validateEvent(event, window, undefined, { allowHistoricalSourceWindow: true }).includes('包含付费或不可公开访问的来源。'));
 });

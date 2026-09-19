@@ -42,9 +42,17 @@ function extractPublishedAt(html) {
     /["']datePublished["']\s*:\s*["']([^"']+)["']/i,
     /["']dateModified["']\s*:\s*["']([^"']+)["']/i
   ]);
-  if (!value) return null;
-  const date = new Date(decodeJsonLdString(value));
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  if (value) {
+    const date = new Date(decodeJsonLdString(value));
+    if (!Number.isNaN(date.getTime()) && date.getUTCFullYear() >= 2000) return date.toISOString();
+  }
+  const text = stripMarkup(html);
+  const english = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},\s+20\d{2}\b/i.exec(text);
+  const chinese = /(20\d{2})[年/.-](\d{1,2})[月/.-](\d{1,2})日?/.exec(text);
+  const fallback = english ? new Date(`${english[0]} 12:00:00 UTC`) : chinese
+    ? new Date(`${chinese[1]}-${String(chinese[2]).padStart(2, '0')}-${String(chinese[3]).padStart(2, '0')}T04:00:00Z`)
+    : null;
+  return fallback && !Number.isNaN(fallback.getTime()) ? fallback.toISOString() : null;
 }
 
 function extractCanonicalUrl(html, fallbackUrl) {

@@ -22,6 +22,7 @@ function replayResult(selected) {
     briefingDate: selected.briefingDate,
     window: getCoverageWindow(selected.briefingDate),
     events: selected.events,
+    coverage: selected.coverage || null,
     // 使用归档的原文，不调用模型补写或改写。
     thinking: selected.thinking || null
   };

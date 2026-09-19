@@ -1,11 +1,15 @@
 .tools/
 .auth/
 .env
+.dev.vars
+.wrangler/
+node_modules/
 *.token-cache.json
 *.eml
 output/
 .cache/
 .runtime/
 state/
+logs/
 .tmp-run-*/
 .private/

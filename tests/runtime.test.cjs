@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { assertPublishableEditorialResult, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, runDaily, summarizeModelUsage } = require('../src/runtime.cjs');
+const { assertPublishableEditorialResult, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, resolveFixturePath, runDaily, summarizeModelUsage, weeklyCaseSeeds } = require('../src/runtime.cjs');
 const { isModelInvocationAllowed, isMorningBriefingReady } = require('../src/model-window.cjs');
 
 test('部分内容被编辑校验拒绝时，保留合格内容继续生成', () => {
@@ -38,6 +38,15 @@ test('硬停止期限内的月度预算为零', () => {
   const environment = { MONTHLY_AI_BUDGET_CNY: '10', AI_HARD_STOP_UNTIL: '2026-09-01T00:00:00+08:00' };
   assert.equal(monthlyBudgetForRun(new Date('2026-08-31T15:00:00Z'), environment), 0);
   assert.equal(monthlyBudgetForRun(new Date('2026-09-01T00:00:00Z'), environment), 10);
+});
+
+test('旧版样例路径兼容映射到当前内置样例', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dgb-fixture-'));
+  fs.mkdirSync(path.join(root, 'examples'));
+  const current = path.join(root, 'examples', 'candidates.sample.json');
+  fs.writeFileSync(current, '{}');
+  assert.equal(resolveFixturePath(root, 'examples/briefing.sample.json'), current);
+  assert.throws(() => resolveFixturePath(root, 'examples/unknown.sample.json'), (error) => error.code === 'FIXTURE_NOT_FOUND');
 });
 
 test('模型调用仅允许在北京时间23:00至08:30', () => {
@@ -79,6 +88,20 @@ test('来源巡检将覆盖不足作为健康状态而不是运行异常', () =>
     { id: 'policy', status: 'impaired', availableCount: 3, minimumAvailable: 4 }
   ] });
   assert.deepEqual(impaired, [{ id: 'policy', status: 'impaired', availableCount: 3, minimumAvailable: 4 }]);
+});
+
+test('周日案例在没有发送记录时使用最近已审校晨报的事件', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dgb-case-seed-'));
+  const output = path.join(root, 'output');
+  fs.mkdirSync(output, { recursive: true });
+  fs.writeFileSync(path.join(output, 'briefing-2026-08-30.selected.json'), JSON.stringify({
+    briefingDate: '2026-08-30',
+    events: [{ fingerprint: 'selected-1', title: '已审校事件', sources: [{ url: 'https://example.com/report' }] }]
+  }));
+  const seeds = weeklyCaseSeeds({ events: [] }, output, new Date('2026-08-31T12:00:00Z'));
+  assert.equal(seeds.length, 1);
+  assert.equal(seeds[0].title, '已审校事件');
+  assert.deepEqual(seeds[0].urls, ['https://example.com/report']);
 });
 
 test('瞬时来源不足时巡检和正式任务均正常结束且不会发送邮件', async () => {

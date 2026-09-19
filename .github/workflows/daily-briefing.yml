@@ -2,15 +2,10 @@ name: Daily Global Briefing
 
 on:
   schedule:
-    # 多个云端提前唤醒点用于吸收 GitHub schedule 的排队延迟；正式成稿
-    # 仍在运行时限定为北京时间 07:00—08:30，成功后当天其余任务幂等跳过。
-    - cron: '0 19 * * *'
-    - cron: '0 21 * * *'
-    - cron: '0 22 * * *'
-    - cron: '40 22 * * *'
+    # Cloudflare 为主触发；07:50 的 GitHub schedule 只在 Cloudflare 派发失败时兜底。
+    - cron: '50 23 * * *'
+    # 以下为不受晨间硬窗口约束的巡检和周度案例。
     - cron: '23 7 * * *'
-    - cron: '5,20,35,50 23 * * *'
-    - cron: '5,20 0 * * *'
     - cron: '10 15 * * 0'
   workflow_dispatch:
     inputs:
@@ -39,6 +34,14 @@ on:
         required: true
         default: false
         type: boolean
+      trigger_source:
+        description: 触发来源（仅审计用途）
+        required: false
+        default: manual
+        type: choice
+        options:
+          - manual
+          - cloudflare-cron
 
 permissions:
   contents: read
@@ -60,7 +63,6 @@ jobs:
       BRIEFING_REVIEWER_PROVIDER: deepseek
       DEEPSEEK_REVIEW_MODEL: deepseek-v4-pro
       MONTHLY_AI_BUDGET_CNY: '10'
-      DAILY_AI_TOKEN_BUDGET: '75000'
       BUDGET_COST_SAFETY_MULTIPLIER: '2'
       USD_CNY_RATE: ${{ vars.USD_CNY_RATE || '7.2' }}
       ENABLE_EMAIL_SEND: ${{ secrets.ENABLE_EMAIL_SEND || 'false' }}
@@ -87,26 +89,28 @@ jobs:
             echo "date=${{ inputs.briefing_date }}" >> "$GITHUB_OUTPUT"
             echo "source_run_id=${{ inputs.source_run_id }}" >> "$GITHUB_OUTPUT"
             echo "manual_send=${{ inputs.allow_send }}" >> "$GITHUB_OUTPUT"
+            echo "trigger_source=${{ inputs.trigger_source }}" >> "$GITHUB_OUTPUT"
             echo "require_morning_readiness=false" >> "$GITHUB_OUTPUT"
-          # GitHub 的 schedule 任务可能在计划时刻后才被调度。提前任务只有在
-          # 运行器实际进入晨报来源窗口后才生成，避免过早使用不完整的24小时窗口。
+          elif [ "${{ github.event.schedule }}" = "50 23 * * *" ]; then
+            echo "mode=final" >> "$GITHUB_OUTPUT"
+            echo "date=" >> "$GITHUB_OUTPUT"
+            echo "source_run_id=" >> "$GITHUB_OUTPUT"
+            echo "manual_send=true" >> "$GITHUB_OUTPUT"
+            echo "trigger_source=github-schedule-fallback" >> "$GITHUB_OUTPUT"
+            echo "require_morning_readiness=true" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "10 15 * * 0" ]; then
             echo "mode=case" >> "$GITHUB_OUTPUT"
             echo "date=" >> "$GITHUB_OUTPUT"
             echo "source_run_id=" >> "$GITHUB_OUTPUT"
             echo "manual_send=true" >> "$GITHUB_OUTPUT"
+            echo "trigger_source=github-schedule" >> "$GITHUB_OUTPUT"
             echo "require_morning_readiness=false" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "0 19 * * *" ] || [ "${{ github.event.schedule }}" = "0 21 * * *" ] || [ "${{ github.event.schedule }}" = "0 22 * * *" ] || [ "${{ github.event.schedule }}" = "40 22 * * *" ] || [ "${{ github.event.schedule }}" = "5,20,35,50 23 * * *" ] || [ "${{ github.event.schedule }}" = "5,20 0 * * *" ]; then
-            echo "mode=final" >> "$GITHUB_OUTPUT"
-            echo "date=" >> "$GITHUB_OUTPUT"
-            echo "source_run_id=" >> "$GITHUB_OUTPUT"
-            echo "manual_send=true" >> "$GITHUB_OUTPUT"
-            echo "require_morning_readiness=true" >> "$GITHUB_OUTPUT"
           else
             echo "mode=scan" >> "$GITHUB_OUTPUT"
             echo "date=" >> "$GITHUB_OUTPUT"
             echo "source_run_id=" >> "$GITHUB_OUTPUT"
             echo "manual_send=false" >> "$GITHUB_OUTPUT"
+            echo "trigger_source=github-schedule" >> "$GITHUB_OUTPUT"
             echo "require_morning_readiness=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -122,6 +126,7 @@ jobs:
       - name: 执行只读巡检或正式晨报
         shell: bash
         run: |
+          echo "TRIGGER_SOURCE=${{ steps.runtime.outputs.trigger_source }}"
           if [ "${{ steps.runtime.outputs.mode }}" = "layout-test" ]; then
             ARGS=()
             if [ "${{ steps.runtime.outputs.manual_send }}" = "true" ] && [ "$ENABLE_EMAIL_SEND" = "true" ]; then

@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const {
   auditCoverageGroups,
   fetchSource,
+  getCurlCommand,
   extractNearbyPublishedAt,
   isAllowedUrl,
   parseGithubTrending,
@@ -45,6 +46,11 @@ test('第一批真实来源注册表通过结构与域名检查', () => {
   assert.ok(registry.sources.length >= 12);
 });
 
+test('curl备用抓取命令按运行平台选择', () => {
+  assert.equal(getCurlCommand('win32'), 'curl.exe');
+  assert.equal(getCurlCommand('linux'), 'curl');
+});
+
 test('域名白名单拒绝HTTP、相似域名和外部跳转', () => {
   assert.equal(isAllowedUrl('https://example.com/a', ['example.com']), true);
   assert.equal(isAllowedUrl('http://example.com/a', ['example.com']), false);
@@ -60,6 +66,21 @@ test('RSS与Atom解析标题、链接和发布时间', () => {
   assert.equal(rssItems[0].title, '模型正式发布');
   assert.equal(rssItems[0].publishedAt, '2026-08-16T06:30:00.000Z');
   assert.equal(atomItems[0].url, 'https://example.com/news/research');
+});
+
+test('RSS标题筛选可将财报源限制为业绩公告', () => {
+  const source = { id: 'earnings', name: '财报', tier: 'S', kind: 'investor-relations', topics: ['ai'], discovery: { type: 'rss', url: 'https://example.com/feed.xml', allowedHosts: ['example.com'], includeTitlePattern: 'financial results' } };
+  const xml = '<rss><channel><item><title>Company Announces Financial Results</title><link>https://example.com/earnings</link><pubDate>2026-08-30T00:00:00Z</pubDate></item><item><title>Company Opens Office</title><link>https://example.com/office</link><pubDate>2026-08-30T00:00:00Z</pubDate></item></channel></rss>';
+  const items = parseRssOrAtom(xml, source);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].title, 'Company Announces Financial Results');
+});
+
+test('HTML标题筛选可将财报源限制为业绩公告', () => {
+  const html = '<a href="/earnings">Company reports quarterly EPS</a><a href="/office">Company opens office</a>';
+  const items = parseHtmlLinks(html, source('html', { url: 'https://example.com/', allowedHosts: ['example.com'], linkPattern: '^https://example\\.com/.+', includeTitlePattern: 'quarterly eps' }));
+  assert.equal(items.length, 1);
+  assert.equal(items[0].url, 'https://example.com/earnings');
 });
 
 test('HTML发现只保留规则与域名同时允许的链接', () => {

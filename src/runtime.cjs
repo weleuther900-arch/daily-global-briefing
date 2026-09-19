@@ -14,12 +14,28 @@ const { buildMimeMessage, sendWithRetry } = require('./mime.cjs');
 const { generateBusinessCase, renderBusinessCase, renderBusinessCaseText } = require('./case.cjs');
 const { acquireLock, readJson, recordRun, releaseLock, updateSentState } = require('./state.cjs');
 const { isModelInvocationAllowed, isMorningBriefingReady } = require('./model-window.cjs');
+const { appendRunLog } = require('./run-log.cjs');
 
 function projectPath(root, value) {
   const resolved = path.resolve(root, value);
   const relative = path.relative(root, resolved);
   if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('运行路径必须位于项目目录内。');
   return resolved;
+}
+
+// 早期本地命令曾使用 briefing.sample.json；公开仓库现已统一为
+// candidates.sample.json。保留这个窄兼容映射，避免一次样例验证把正式运行
+// 误记为失败，同时不接受任意不存在路径。
+function resolveFixturePath(root, fixturePath) {
+  const requested = projectPath(root, fixturePath);
+  if (fs.existsSync(requested)) return requested;
+  if (String(fixturePath).replaceAll('\\', '/') === 'examples/briefing.sample.json') {
+    const replacement = projectPath(root, 'examples/candidates.sample.json');
+    if (fs.existsSync(replacement)) return replacement;
+  }
+  const error = new Error(`找不到样例文件：${fixturePath}。内置样例为 examples/candidates.sample.json。`);
+  error.code = 'FIXTURE_NOT_FOUND';
+  throw error;
 }
 
 function beijingDate(now = new Date()) {
@@ -92,6 +108,46 @@ function getImpairedCoverageGroups(discovery) {
   return (discovery.coverageGroups || []).filter((group) => group.status === 'impaired');
 }
 
+function selectedEventsFromOutput(outputDirectory, now = new Date()) {
+  const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(outputDirectory, { withFileTypes: true });
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  return entries
+    .filter((entry) => entry.isFile() && /^briefing-\d{4}-\d{2}-\d{2}\.selected\.json$/.test(entry.name))
+    .flatMap((entry) => {
+      const selected = readJson(path.join(outputDirectory, entry.name), { events: [] });
+      return (selected.events || []).map((event) => ({
+        ...event,
+        selectedAt: `${selected.briefingDate || entry.name.slice(9, 19)}T07:00:00+08:00`
+      }));
+    })
+    .filter((event) => new Date(event.selectedAt).getTime() >= cutoff);
+}
+
+function weeklyCaseSeeds(sentState, outputDirectory, now = new Date()) {
+  const cutoff = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  const sent = (sentState.events || [])
+    .filter((event) => new Date(event.sentAt).getTime() >= cutoff)
+    .map((event) => ({ ...event, selectedAt: event.sentAt }));
+  const selected = selectedEventsFromOutput(outputDirectory, now).map((event) => ({
+    ...event,
+    urls: (event.sources || []).map((source) => source.url)
+  }));
+  const unique = new Map();
+  for (const event of [...sent, ...selected]) {
+    const key = event.fingerprint || `${event.title}|${(event.urls || []).join('|')}`;
+    if (!unique.has(key)) unique.set(key, event);
+  }
+  return [...unique.values()]
+    .filter((event) => new Date(event.selectedAt).getTime() >= cutoff)
+    .sort((left, right) => new Date(right.selectedAt) - new Date(left.selectedAt))
+    .slice(0, 8);
+}
+
 async function runDaily(options = {}) {
   const root = path.resolve(options.root || path.join(__dirname, '..'));
   const now = options.now || new Date();
@@ -106,16 +162,23 @@ async function runDaily(options = {}) {
   fs.mkdirSync(outputDirectory, { recursive: true });
   acquireLock(lockPath, { runId });
   let phase = 'start';
+  const log = (event, extra = {}) => appendRunLog(root, { runId, mode, phase, event, ...extra });
+  log('run-start', { date, outputDirectory });
   try {
     const runStatePath = path.join(stateDirectory, 'runs.json');
     const runState = readJson(runStatePath, { runs: [] });
     const prior = runState.runs.find((item) => item.runId === runId && item.status === 'complete' && item.sent === true);
-    if (prior) return { ...prior, idempotentSkip: true };
+    if (prior) {
+      const status = { ...prior, idempotentSkip: true };
+      log('run-complete', status);
+      return status;
+    }
 
     // 夜间恢复任务只在当天尚未成功投递时补跑，正常日不产生额外模型调用或邮件。
     if (mode === 'recovery' && hasSentRunForDate(runState, date)) {
       const status = { runId, status: 'recovery-skipped', date, mode, sent: false, completedAt: new Date().toISOString() };
       recordRun(runStatePath, status);
+      log('run-complete', status);
       return status;
     }
 
@@ -123,6 +186,7 @@ async function runDaily(options = {}) {
     if (mode !== 'scan' && !options.fixturePath && monthlyBudgetCny <= 0) {
       const status = { runId, status: 'budget-stopped', date, mode, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
+      log('run-complete', status);
       return status;
     }
 
@@ -130,27 +194,35 @@ async function runDaily(options = {}) {
     if (mode !== 'scan' && !options.fixturePath && options.validateOnly !== true && !isModelInvocationAllowed(now)) {
       const status = { runId, status: 'model-window-stopped', date, mode, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
+      log('run-complete', status);
       return status;
     }
 
     if (mode === 'final' && options.requireMorningReadiness === true && !options.fixturePath && !isMorningBriefingReady(now)) {
       const status = { runId, status: 'morning-window-not-ready', date, mode, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
+      log('run-complete', status);
       return status;
     }
 
     if (mode === 'case') {
       phase = 'weekly-case';
-      return await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, monthlyBudgetCny, send: options.send === true });
+      log('phase-start');
+      const status = await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, monthlyBudgetCny, send: options.send === true, now });
+      log('run-complete', status);
+      return status;
     }
     if (options.fixturePath) {
       phase = 'fixture-build';
-      const fixture = JSON.parse(fs.readFileSync(projectPath(root, options.fixturePath), 'utf8'));
+      const fixture = JSON.parse(fs.readFileSync(resolveFixturePath(root, options.fixturePath), 'utf8'));
       const result = runEditorialPipeline({ ...fixture, briefingDate: date });
-      return finalizeArtifacts(result, { root, outputDirectory, runId, date, review: { passed: true, fixture: true }, send: false });
+      const status = await finalizeArtifacts(result, { root, outputDirectory, runId, date, review: { passed: true, fixture: true }, send: false });
+      log('run-complete', status);
+      return status;
     }
 
     phase = 'discovery';
+    log('phase-start');
     const registry = JSON.parse(fs.readFileSync(projectPath(root, 'config/sources.v1.json'), 'utf8'));
     const sourceCollector = options.collectSources || collectSources;
     const discovery = await sourceCollector(registry, { cacheDirectory: projectPath(root, '.cache/discovery'), concurrency: 5 });
@@ -167,6 +239,7 @@ async function runDaily(options = {}) {
         completedAt: new Date().toISOString()
       };
       recordRun(path.join(stateDirectory, 'runs.json'), result);
+      log('run-complete', result);
       return result;
     }
     if (impaired.length) {
@@ -177,11 +250,13 @@ async function runDaily(options = {}) {
     }
 
     phase = 'details';
+    log('phase-start');
     const { getCoverageWindow } = require('./pipeline.cjs');
     const trimmed = trimDiscoveryForWindow(discovery, getCoverageWindow(date));
     const details = await enrichDiscoveryItems(trimmed, registry, { cacheDirectory: projectPath(root, '.cache/details'), concurrency: 5 });
 
     phase = 'candidate-routing';
+    log('phase-start');
     const sentStatePath = path.join(stateDirectory, 'sent-events.json');
     const candidates = filterPreviouslySent(prepareModelCandidates(details, date), readJson(sentStatePath, { events: [] }));
     if (candidates.candidateCount === 0) {
@@ -192,20 +267,22 @@ async function runDaily(options = {}) {
     if (options.validateOnly === true) {
       const status = { runId, status: 'validation-complete', date, candidateCount: candidates.candidateCount, rejectedCount: candidates.rejectedCount, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
+      log('run-complete', status);
       return status;
     }
 
     phase = 'generation-and-review';
+    log('phase-start', { candidateCount: candidates.candidateCount });
     const generated = await generateAndReview(candidates, {
       ledgerPath: path.join(stateDirectory, 'cost-ledger.json'),
       monthlyBudgetCny,
       budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
-      dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
       usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
     });
     writeJsonAtomic(path.join(outputDirectory, `review-${runId}.json`), generated.review);
 
     phase = 'editorial-validation';
+    log('phase-start');
     const result = runEditorialPipeline(generated.briefing);
     // 单条质量问题只应剔除该条内容；只要仍有合格事件，就继续生成晨报。
     // 先落盘审计信息，使全部拒绝时也能在私有运行产物中查看原因。
@@ -214,13 +291,16 @@ async function runDaily(options = {}) {
     assertPublishableEditorialResult(result);
 
     phase = 'artifact-finalization';
+    log('phase-start', { eventCount: result.events.length });
     const finalized = await finalizeArtifacts(result, { root, outputDirectory, runId, date, review: generated.review, modelUsage, send: options.send === true });
     if (finalized.sent) updateSentState(sentStatePath, result.events);
+    log('run-complete', finalized);
     return finalized;
   } catch (error) {
     if (error && error.code === 'MODEL_WINDOW_CLOSED') {
       const status = { runId, status: 'model-window-stopped', date, mode, phase, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
+      log('run-complete', status);
       return status;
     }
     // 服务商输出无法解析时已经尝试过一次完整重写。将诊断留在私有产物中，
@@ -244,11 +324,13 @@ async function runDaily(options = {}) {
         completedAt: new Date().toISOString()
       };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
+      log('run-error', { code: error.code, message: error.message, failurePath });
       return status;
     }
     const failurePath = writeFailure(outputDirectory, runId, phase, error);
     // 用户要求运行故障仅保留在私有运行记录中，不发送故障邮件。
     recordRun(path.join(stateDirectory, 'runs.json'), { runId, status: 'failed', phase, failurePath, failureNotified: false, completedAt: new Date().toISOString() });
+    log('run-error', { code: error?.code || 'UNEXPECTED', message: error.message, failurePath });
     throw error;
   } finally {
     purgeDetailCache(projectPath(root, '.cache/details'));
@@ -259,9 +341,8 @@ async function runDaily(options = {}) {
 async function runWeeklyCase(options) {
   const registry = JSON.parse(fs.readFileSync(path.join(options.root, 'config/sources.v1.json'), 'utf8'));
   const sentState = readJson(path.join(options.stateDirectory, 'sent-events.json'), { events: [] });
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const seeds = (sentState.events || []).filter((event) => new Date(event.sentAt).getTime() >= cutoff).slice(0, 8);
-  if (seeds.length === 0) throw new Error('过去七天没有可用于商业案例的已发送事件。');
+  const seeds = weeklyCaseSeeds(sentState, options.outputDirectory, options.now || new Date());
+  if (seeds.length === 0) throw new Error('过去七天没有可用于商业案例的已发送或已通过审校的晨报事件。');
   const bySource = new Map();
   for (const seed of seeds) {
     for (const url of seed.urls || []) {
@@ -272,7 +353,7 @@ async function runWeeklyCase(options) {
       if (!bySource.has(source.id)) bySource.set(source.id, { sourceId: source.id, sourceName: source.name, status: 'healthy', items: [] });
       bySource.get(source.id).items.push({
         sourceId: source.id, sourceName: source.name, sourceTier: source.tier, sourceKind: source.kind, topics: source.topics,
-        title: seed.title, url, publishedAt: seed.sentAt,
+        title: seed.title, url, publishedAt: seed.selectedAt,
         fingerprint: crypto.createHash('sha256').update(`${source.id}|${url}`).digest('hex').slice(0, 20), needsDetailFetch: true
       });
     }
@@ -287,7 +368,6 @@ async function runWeeklyCase(options) {
     ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'),
     monthlyBudgetCny: options.monthlyBudgetCny ?? monthlyBudgetForRun(),
     budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
-    dailyTokenBudget: Number(process.env.DAILY_AI_TOKEN_BUDGET || 150000),
     usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
   });
   const html = renderBusinessCase(generated.content, options.date);
@@ -337,6 +417,7 @@ async function finalizeArtifacts(result, options) {
     coverageStart: result.window.start.toISOString(),
     coverageEnd: result.window.end.toISOString(),
     events: result.events,
+    coverage: result.coverage || null,
     // 私有补发必须能还原完整邮件，包含不涉及来源事实的独立思考段。
     thinking: result.thinking || null
   });
@@ -353,4 +434,4 @@ async function finalizeArtifacts(result, options) {
   return status;
 }
 
-module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, projectPath, purgeDetailCache, runDaily, runWeeklyCase, summarizeModelUsage, trimDiscoveryForWindow, writeFailure };
+module.exports = { assertPublishableEditorialResult, beijingDate, finalizeArtifacts, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, projectPath, purgeDetailCache, resolveFixturePath, runDaily, runWeeklyCase, selectedEventsFromOutput, summarizeModelUsage, trimDiscoveryForWindow, weeklyCaseSeeds, writeFailure };

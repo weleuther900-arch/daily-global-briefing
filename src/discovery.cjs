@@ -111,18 +111,20 @@ function parseRssOrAtom(content, source) {
   const itemMatches = [...String(content).matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)];
   const entryMatches = [...String(content).matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi)];
   const blocks = itemMatches.length > 0 ? itemMatches.map((match) => match[1]) : entryMatches.map((match) => match[1]);
+  const includeTitlePattern = source.discovery.includeTitlePattern ? new RegExp(source.discovery.includeTitlePattern, 'i') : null;
   return uniqueItems(blocks.map((block) => makeDiscoveryItem(
     source,
     getTag(block, ['title']),
     getRssLink(block),
     getTag(block, ['pubDate', 'published', 'updated', 'dc:date']),
     getTag(block, ['guid', 'id'])
-  )), source.discovery.maxItems || MAX_ITEMS_PER_SOURCE);
+  )).filter((item) => item && (!includeTitlePattern || includeTitlePattern.test(item.title))), source.discovery.maxItems || MAX_ITEMS_PER_SOURCE);
 }
 
 function parseHtmlLinks(content, source, responseUrl = source.discovery.url) {
   const pattern = new RegExp(source.discovery.linkPattern);
   const excludePattern = source.discovery.excludeLinkPattern ? new RegExp(source.discovery.excludeLinkPattern) : null;
+  const includeTitlePattern = source.discovery.includeTitlePattern ? new RegExp(source.discovery.includeTitlePattern, 'i') : null;
   const items = [];
   const html = String(content);
   for (const match of html.matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
@@ -133,7 +135,8 @@ function parseHtmlLinks(content, source, responseUrl = source.discovery.url) {
       continue;
     }
     if (!pattern.test(resolved) || (excludePattern && excludePattern.test(resolved))) continue;
-    items.push(makeDiscoveryItem(source, match[2], resolved, extractNearbyPublishedAt(html, match.index, match[0].length)));
+    const item = makeDiscoveryItem(source, match[2], resolved, extractNearbyPublishedAt(html, match.index, match[0].length));
+    if (item && (!includeTitlePattern || includeTitlePattern.test(item.title))) items.push(item);
   }
   return uniqueItems(items, source.discovery.maxItems || MAX_ITEMS_PER_SOURCE);
 }
@@ -210,6 +213,9 @@ function validateRegistry(registry) {
     }
     if (!isAllowedUrl(source.discovery.url, source.discovery.allowedHosts)) errors.push(`${source.id || '未知来源'}的入口不在自身域名白名单内。`);
     if (source.discovery.type === 'html' && !source.discovery.linkPattern) errors.push(`${source.id}缺少HTML链接规则。`);
+    if (source.discovery.includeTitlePattern) {
+      try { new RegExp(source.discovery.includeTitlePattern, 'i'); } catch { errors.push(`${source.id}的标题筛选规则无效。`); }
+    }
     if (source.discovery.maxItems != null && (!Number.isInteger(source.discovery.maxItems) || source.discovery.maxItems < 1 || source.discovery.maxItems > MAX_ITEMS_PER_SOURCE)) {
       errors.push(`${source.id}的maxItems必须是1至${MAX_ITEMS_PER_SOURCE}之间的整数。`);
     }
@@ -248,11 +254,15 @@ function writeJsonAtomic(targetPath, value) {
   fs.renameSync(temporaryPath, targetPath);
 }
 
+function getCurlCommand(platform = process.platform) {
+  return platform === 'win32' ? 'curl.exe' : 'curl';
+}
+
 async function fetchWithCurl(source, timeoutMs) {
   const marker = '__DGB_CURL_META__';
   let stdout;
   try {
-    ({ stdout } = await execFileAsync('curl.exe', [
+    ({ stdout } = await execFileAsync(getCurlCommand(), [
       '--max-time', String(Math.ceil(timeoutMs / 1000)),
       '--silent',
       '--show-error',
@@ -471,6 +481,7 @@ module.exports = {
   decodeEntities,
   fetchSource,
   fetchWithCurl,
+  getCurlCommand,
   extractNearbyPublishedAt,
   isAllowedUrl,
   parseHtmlLinks,

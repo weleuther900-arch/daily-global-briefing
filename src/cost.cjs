@@ -60,16 +60,19 @@ function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 10) {
   return { spentCny: spent, remainingAfterProjectedCny: monthlyBudgetCny - spent - projectedCost.cny };
 }
 
-function assertDailyTokenBudget(ledgerPath, projectedCost, dailyTokenBudget = 150000) {
+function assertDailyTokenBudget(ledgerPath, projectedCost, dailyTokenBudget) {
   const ledger = readJson(ledgerPath, { entries: [] });
   const spent = getDayTokenSpend(ledger);
+  const cap = Number(dailyTokenBudget);
+  // 每日 Token 上限默认关闭；仅在部署者显式提供正数时启用。
+  if (!Number.isFinite(cap) || cap <= 0) return { spentTokens: spent, disabled: true };
   const projected = Number(projectedCost.inputTokens || 0) + Number(projectedCost.outputTokens || 0);
-  if (spent + projected > dailyTokenBudget) {
-    const error = new Error(`Token门禁拒绝调用：当日已用${spent} Token，本次上限${projected} Token，预算${dailyTokenBudget} Token。`);
+  if (spent + projected > cap) {
+    const error = new Error(`Token门禁拒绝调用：当日已用${spent} Token，本次上限${projected} Token，预算${cap} Token。`);
     error.code = 'DAILY_TOKEN_BUDGET_EXCEEDED';
     throw error;
   }
-  return { spentTokens: spent, remainingAfterProjectedTokens: dailyTokenBudget - spent - projected };
+  return { spentTokens: spent, remainingAfterProjectedTokens: cap - spent - projected };
 }
 
 function appendCost(ledgerPath, entry) {

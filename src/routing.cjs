@@ -4,8 +4,9 @@ const crypto = require('node:crypto');
 const { getCoverageWindow, jaccardSimilarity } = require('./pipeline.cjs');
 
 const MAX_MODEL_SOURCES_PER_EVENT = 2;
-// 晨报模型只需可核验的正文摘要；较长原文会在复核阶段成倍放大 Token 成本。
-const MAX_MODEL_SOURCE_EXCERPT_CHARS = 1200;
+// This is a source-evidence bound, not a daily Token cap. It preserves enough
+// context for the writer and independent reviewer to verify a fact together.
+const MAX_MODEL_SOURCE_EXCERPT_CHARS = 2200;
 
 const KEYWORDS = Object.freeze({
   ai: [
@@ -25,11 +26,15 @@ const KEYWORDS = Object.freeze({
   'global-economy-politics': [
     '美联储', '联邦公报', '欧盟', '欧洲委员会', '关税', '制裁', '出口管制', '利率', '通胀', '就业',
     'gdp', 'federal reserve', 'federal register', 'export control', 'tariff', 'sanction', 'inflation',
-    'employment', 'monetary policy', 'competition regulation', 'trade policy'
+    'employment', 'monetary policy', 'competition regulation', 'trade policy',
+    '国防', '防务', '军事工业', '军工', '弹药', '导弹', '武器', '军火', '战略储备', '弹药库存',
+    '国防部', '五角大楼', '国防采购', '国防工业基础', 'industrial base', 'ammunition', 'munitions',
+    'defense procurement', 'department of defense', 'pentagon', 'military'
   ],
   'open-source-tech': [
-    '开源', 'github', 'repository', 'release', '版本发布', '开发者', '许可证', 'sdk', 'api', '框架',
-    'open source', 'developer', 'security advisory', '漏洞'
+    '开源', 'github', 'repository', '代码仓库', '开源项目', '开源协议', '开放源代码', '许可证',
+    '开发者工具', '开发者平台', '开发者生态', 'sdk', 'api', '框架', 'package registry', 'package manager',
+    'open source', 'developer tool', 'developer platform', 'developer ecosystem', 'security advisory', '漏洞', 'cve'
   ]
 });
 
@@ -39,7 +44,9 @@ const EXCLUSION_PATTERNS = Object.freeze({
   sports: ['football match', 'basketball', '世界杯', '联赛', '网球公开赛'],
   entertainment: ['celebrity', 'box office', '明星', '票房', '真人秀'],
   'routine-conflict-update': ['troops killed', 'missile strike killed', '战果', '日常战况'],
-  'routine-meeting': ['工作会议', '筹备会议', '专题会议', '座谈会', '领导小组会议']
+  'routine-meeting': ['工作会议', '筹备会议', '专题会议', '座谈会', '领导小组会议'],
+  'unrelated-election-litigation': ['mail-in ballot', 'mail in ballot', 'absentee ballot', '邮寄选票', '缺席选票'],
+  'unrelated-aviation-accident': ['cargo plane crash', 'cargo plane', 'runway excursion', '飞机冲出跑道', '货机冲出跑道', '货机事故', '机场跑道事故']
 });
 
 const IMPACT_OVERRIDE = [
@@ -47,6 +54,24 @@ const IMPACT_OVERRIDE = [
   'financial market', '金融市场', 'data center', '数据中心', 'policy response', '政策调整',
   '正式发布', '正式签署', '实施方案', '监管决定', '法规公布'
 ];
+
+// 仅 GitHub 自身的三个受控入口拥有“结构性开源相关性”：热门仓库、平台
+// 更新和安全公告本身就是开发者生态事件。这个窄规则不会把其他来源登记的
+// 标签当作事实，因此不会重现选举诉讼、航空事故被错误归类的问题。
+const GITHUB_ECOSYSTEM_SOURCE_IDS = new Set(['github-changelog', 'github-trending', 'github-advisories']);
+const NON_OPEN_SOURCE_SIGNALS = Object.freeze([
+  '国防', '防务', '军事', '军事工业', '军工', '弹药', '导弹', '武器', '军火', '战略储备', '弹药库存',
+  '国防部', '五角大楼', '国防采购', '国防工业基础', 'industrial base', 'ammunition', 'munitions',
+  'defense procurement', 'department of defense', 'pentagon', 'military'
+]);
+
+function isGithubEcosystemDetail(detail) {
+  return GITHUB_ECOSYSTEM_SOURCE_IDS.has(String(detail?.sourceId || ''));
+}
+
+function isDefenseOrIndustrialDetail(text) {
+  return keywordHits(text, NON_OPEN_SOURCE_SIGNALS).length > 0;
+}
 
 function keywordHits(text, keywords) {
   const normalized = String(text || '').toLowerCase();
@@ -64,12 +89,26 @@ function detectHardExclusion(text) {
 
 function routeCategory(detail) {
   const text = `${detail.title}\n${detail.text.slice(0, 6000)}`;
+  if (isGithubEcosystemDetail(detail)) return ['open-source-tech', 3, 3];
   const scores = {};
-  for (const [category, keywords] of Object.entries(KEYWORDS)) scores[category] = keywordHits(text, keywords).length;
-  for (const topic of detail.topics || []) {
-    if (Object.hasOwn(scores, topic)) scores[topic] += 2;
+  const directScores = {};
+  for (const [category, keywords] of Object.entries(KEYWORDS)) {
+    directScores[category] = keywordHits(text, keywords).length;
+    scores[category] = directScores[category];
   }
-  return Object.entries(scores).sort((left, right) => right[1] - left[1])[0];
+  // 国防采购、弹药库存和军工产业基础属于全球经济与政治的产业/政策影响，
+  // 即使正文提到 API、框架等泛技术词，也不能被路由到开源与技术生态。
+  if (isDefenseOrIndustrialDetail(text)) {
+    directScores['open-source-tech'] = 0;
+    scores['open-source-tech'] = 0;
+  }
+  // 来源标签只能帮助区分“正文已经显示相关性”的内容；不能单独把一条
+  // 普通选举、事故或社会新闻塞进人工智能/数字经济栏目。
+  for (const topic of detail.topics || []) {
+    if (Object.hasOwn(scores, topic) && directScores[topic] > 0) scores[topic] += 1;
+  }
+  const [category, score] = Object.entries(scores).sort((left, right) => right[1] - left[1])[0];
+  return [category, score, directScores[category]];
 }
 
 function createClusterFingerprint(category, title) {
@@ -77,11 +116,29 @@ function createClusterFingerprint(category, title) {
     .digest('hex').slice(0, 20);
 }
 
+function selectEvidenceExcerpt(value, limit = MAX_MODEL_SOURCE_EXCERPT_CHARS) {
+  const original = String(value || '').replace(/\r/g, '').trim();
+  // Detail extraction can contain navigation labels before article paragraphs.
+  // Prefer substantial prose blocks while keeping the original order. Official
+  // pages with no semantic markup still use the complete text as a fallback.
+  const blocks = original.split(/\n+/).map((item) => item.trim()).filter(Boolean);
+  const prose = blocks.filter((item) => item.length >= 40 && !/^(skip|home|menu|search|investors?|news|events)$/i.test(item));
+  const joined = prose.join('\n\n');
+  const evidence = joined.length >= 40 ? joined : original;
+  if (evidence.length <= limit) return evidence;
+  // A filing or transcript can be one long unstructured block. Start around a
+  // factual signal rather than repeatedly sending the navigation prefix.
+  const match = /(?:\$?\d[\d,.]*(?:%|\s*(?:billion|million|亿元|万亿元|percent))?|announced|reported|said|approved|released|增长|同比|发布|表示|披露)/i.exec(evidence);
+  const start = match ? Math.max(0, match.index - 260) : 0;
+  return evidence.slice(start, start + limit);
+}
+
 function makeRoutedCandidate(detail) {
-  const [category, score] = routeCategory(detail);
+  const [category, score, directRelevanceScore] = routeCategory(detail);
   return {
     category,
     relevanceScore: score,
+    directRelevanceScore,
     fingerprint: createClusterFingerprint(category, detail.title),
     title: detail.title,
     publishedAt: detail.publishedAt,
@@ -90,11 +147,12 @@ function makeRoutedCandidate(detail) {
       organization: detail.sourceName,
       tier: detail.sourceTier,
       kind: detail.sourceKind,
+      access: detail.access,
       title: detail.title,
       url: detail.url,
       publishedAt: detail.publishedAt,
       language: detail.language,
-      excerpt: detail.text.slice(0, MAX_MODEL_SOURCE_EXCERPT_CHARS),
+      excerpt: selectEvidenceExcerpt(detail.text),
       textHash: detail.textHash
     }],
     hasUntrustedInstructions: detail.hasUntrustedInstructions
@@ -148,7 +206,8 @@ function prepareModelCandidates(detailResult, briefingDate) {
     const exclusion = detectHardExclusion(fullText);
     if (exclusion) reasons.push(`触发硬排除项：${exclusion}。`);
     const routed = detail.detailStatus === 'ready' ? makeRoutedCandidate(detail) : null;
-    if (routed && routed.relevanceScore < 2) reasons.push('与约定主题的可解释相关性不足。');
+    if (routed && routed.directRelevanceScore < 1) reasons.push('正文或标题没有与所属栏目的直接相关信号。');
+    else if (routed && routed.relevanceScore < 2) reasons.push('与约定主题的可解释相关性不足。');
     if (reasons.length > 0) rejected.push({ title: detail.title, url: detail.url, reasons });
     else accepted.push(routed);
   }
@@ -181,12 +240,15 @@ function filterPreviouslySent(candidateResult, sentState, retentionDays = 14) {
 }
 
 module.exports = {
+  GITHUB_ECOSYSTEM_SOURCE_IDS,
   KEYWORDS,
   MAX_MODEL_SOURCE_EXCERPT_CHARS,
   MAX_MODEL_SOURCES_PER_EVENT,
   clusterCandidates,
   detectHardExclusion,
   filterPreviouslySent,
+  isGithubEcosystemDetail,
   prepareModelCandidates,
-  routeCategory
+  routeCategory,
+  selectEvidenceExcerpt
 };

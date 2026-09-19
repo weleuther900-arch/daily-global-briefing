@@ -55,6 +55,41 @@ function renderDataTable(table) {
   return `<table class="data-table" role="presentation"><thead><tr>${headings}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+function fallbackCoverage(result, config) {
+  const categories = config.categories.map((category) => {
+    const eventCount = result.events.filter((event) => event.category === category.id).length;
+    return { ...category, candidateCount: 0, eventCount, status: eventCount > 0 ? 'included' : 'no-qualified-candidate' };
+  });
+  const includedCategoryCount = categories.filter((category) => category.eventCount > 0).length;
+  const totalCategoryCount = categories.length;
+  const percentage = totalCategoryCount === 0 ? 0 : Math.round(includedCategoryCount / totalCategoryCount * 100);
+  return {
+    categories,
+    formula: {
+      symbol: `有效栏目覆盖率 = ${includedCategoryCount} ÷ ${totalCategoryCount} = ${percentage}%`,
+      text: '通过来源、结构和独立证据审校的栏目数，占全部约定栏目的比例。',
+      notes: ['这是本期内部编辑指标，不是外部来源事实。']
+    },
+    dataTable: {
+      headings: ['约定栏目', '候选数', '本期状态'],
+      rows: categories.map((category) => [category.name, String(category.candidateCount), category.eventCount > 0 ? `已收录${category.eventCount}条` : '无达到标准的候选'])
+    },
+    fallbackThinking: {
+      title: '先做可逆决策，还是先等待更多证据？',
+      scenario: '选择本期一条最可能影响你所在行业的事件。假设你负责该行业内一家中型公司的资源分配，且未来四周只能推进一项行动。',
+      decisionQuestion: '在信息仍不完整时，你会先用小规模试点换取学习，还是暂缓投入以保留资源？',
+      options: ['A. 设定预算上限和退出条件，启动可逆的小规模试点。', 'B. 暂缓投入，把资源留给证据更充分的机会。'],
+      checks: ['试点失败时的最大现金与时间损失。', '等待四周会失去的客户、渠道或技术窗口。', '下一条能改变选择的可验证证据。']
+    }
+  };
+}
+
+function categoryEmptyMessage(category) {
+  return category.status === 'withheld'
+    ? `本期有${category.candidateCount}条候选，但均未通过独立证据审校，未刊出。`
+    : '本期没有同时达到来源、时间、相关性和证据标准的候选。';
+}
+
 function renderWatch(watch) {
   return (watch || []).map((item) => `
     <div class="watch-row">
@@ -70,9 +105,24 @@ function renderSources(sources) {
   return `<div class="source">${links}</div>`;
 }
 
+function renderNarrativeSection(eventNumber, subNumber, title, text, className) {
+  if (!text) return '';
+  return `<h3 class="subhead ${className || ''}"><span class="subhead-mark"></span>${eventNumber}.${subNumber} ${title}</h3><p>${escapeHtml(text)}</p>`;
+}
+
 function renderArticle(event, eventNumber) {
   let subNumber = 1;
   const subsections = [];
+
+  for (const item of [
+    ['大白话讲解', event.plainLanguage, 'plain-language'],
+    ['相关影响', event.impact, 'impact'],
+    ['判断边界', event.judgmentBoundary, 'judgment-boundary']
+  ]) {
+    if (!item[1]) continue;
+    subsections.push(renderNarrativeSection(eventNumber, subNumber, item[0], item[1], item[2]));
+    subNumber += 1;
+  }
 
   for (const section of event.sections || []) {
     const heading = `${eventNumber}.${subNumber} ${escapeHtml(section.title)}`;
@@ -105,6 +155,7 @@ function renderArticle(event, eventNumber) {
       <h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)}</h2>
       <div class="meta">公开时间：${escapeHtml(formatBeijingDateTime(new Date(event.publishedAt)))}${evidence}</div>
       ${renderTags(event)}
+      <div class="lead-label">核心判断</div>
       <p class="lead">${escapeHtml(event.conclusion)}</p>
       ${subsections.join('')}
     </article>`;
@@ -112,23 +163,31 @@ function renderArticle(event, eventNumber) {
 
 function renderThinking(thinking) {
   if (!thinking) return '';
+  const scenario = thinking.scenario ? `<p><strong>你的角色：</strong>${escapeHtml(thinking.scenario)}</p>` : '';
+  const question = thinking.decisionQuestion ? `<p><strong>决策题：</strong>${escapeHtml(thinking.decisionQuestion)}</p>` : '';
+  const options = Array.isArray(thinking.options) && thinking.options.length > 0
+    ? `<ol class="thinking-options">${thinking.options.map((option) => `<li>${escapeHtml(option)}</li>`).join('')}</ol>` : '';
+  const checks = Array.isArray(thinking.checks) && thinking.checks.length > 0
+    ? `<div class="thinking-checks"><strong>作答前核验</strong><ul>${thinking.checks.map((check) => `<li>${escapeHtml(check)}</li>`).join('')}</ul></div>` : '';
   const context = thinking.context ? `<p>${escapeHtml(thinking.context)}</p>` : '';
   return `
     <aside class="thinking">
       <div class="thinking-label">三分钟商业思考</div>
       <div class="thinking-title">${escapeHtml(thinking.title)}</div>
-      ${context}
+      ${scenario}${question}${options}${checks}${context}
     </aside>`;
 }
 
 function renderHtml(result, config = PROJECT_CONFIG) {
+  const coverage = result.coverage || fallbackCoverage(result, config);
+  const coverageByCategory = new Map((coverage.categories || []).map((category) => [category.id, category]));
   const sections = config.categories.map((category) => {
     const events = result.events.filter((event) => event.category === category.id);
-    if (events.length === 0) return '';
+    const categoryCoverage = coverageByCategory.get(category.id) || { ...category, status: 'no-qualified-candidate', candidateCount: 0 };
     return `
       <section class="section">
         <h1 class="section-title">${category.number}、${escapeHtml(category.name)}</h1>
-        ${events.map((event, index) => renderArticle(event, index + 1)).join('')}
+        ${events.length > 0 ? events.map((event, index) => renderArticle(event, index + 1)).join('') : `<p class="category-empty">${escapeHtml(categoryEmptyMessage(categoryCoverage))}</p>`}
       </section>`;
   }).join('');
 
@@ -166,7 +225,8 @@ function renderHtml(result, config = PROJECT_CONFIG) {
     .tag-icon { display:inline-block; margin-right:7px; color:#526274; font-size:14px; vertical-align:middle; }
     .tag { display:inline-block; margin:0 6px 6px 0; padding:4px 8px; color:#28517f; background:#f1f6fc; border:1px solid #d8e4f2; border-radius:999px; font-size:12px; line-height:1.2; vertical-align:middle; }
     p { margin:9px 0 0; color:#263444; font-size:16.5px; line-height:1.78; }
-    .lead { margin-top:16px; color:#17283c; font-size:17.5px; line-height:1.72; font-weight:650; }
+    .lead-label { margin-top:16px; color:#6a7786; font-size:12px; line-height:1.4; letter-spacing:.08em; font-weight:700; }
+    .lead { margin-top:5px; color:#17283c; font-size:17.5px; line-height:1.72; font-weight:650; }
     .subhead { margin:23px 0 8px; color:#234a78; font-size:15px; line-height:1.45; font-weight:750; }
     .subhead-mark { display:inline-block; width:7px; height:7px; margin:0 8px 2px 0; background:#3772bf; border-radius:50%; }
     .concept { margin:15px 0 2px; padding:16px 17px; background:#f3f7fc; border-left:4px solid #5682ba; border-radius:4px 10px 10px 4px; }
@@ -193,6 +253,9 @@ function renderHtml(result, config = PROJECT_CONFIG) {
     .thinking-label { color:#c7c7cc; font-size:12px; line-height:1.4; letter-spacing:.08em; }
     .thinking-title { margin:5px 0 0; color:#fff; font-size:18px; line-height:1.5; font-weight:730; }
     .thinking p { color:#e8eef6; font-size:15px; line-height:1.75; }
+    .thinking-options,.thinking-checks ul { margin:10px 0; padding-left:21px; color:#e8eef6; font-size:15px; line-height:1.75; }
+    .thinking-checks { margin-top:12px; color:#e8eef6; font-size:15px; }
+    .category-empty { margin:18px 0 3px; color:#607184; font-size:15px; }
     .empty { margin:32px 0 6px; color:#526274; }
     @media only screen and (max-width:520px) {
       .page { padding:0; }
@@ -215,7 +278,7 @@ function renderHtml(result, config = PROJECT_CONFIG) {
       .brand,.section-title,.article-title { color:#f2f2f7!important; }
       .section-title { border-left-color:#8e8e93!important; }
       p,.lead,.data-table tbody td { color:#e5e5ea!important; }
-      .edition,.meta,.source { color:#aeaeb2!important; }
+      .edition,.meta,.source,.lead-label { color:#aeaeb2!important; }
       .count,.tag { color:#e5e5ea!important; background:#1c1c1e!important; border-color:#48484a!important; }
       .subhead { color:#d1d1d6!important; }
       .subhead-mark { background:#8e8e93!important; }
@@ -246,7 +309,7 @@ function renderHtml(result, config = PROJECT_CONFIG) {
       <div class="content">
         ${emptyState}
         ${sections}
-        ${renderThinking(result.thinking)}
+        ${renderThinking(result.thinking || coverage.fallbackThinking)}
       </div>
     </main>
   </div>
@@ -255,6 +318,8 @@ function renderHtml(result, config = PROJECT_CONFIG) {
 }
 
 function renderPlainText(result, config = PROJECT_CONFIG) {
+  const coverage = result.coverage || fallbackCoverage(result, config);
+  const coverageByCategory = new Map((coverage.categories || []).map((category) => [category.id, category]));
   const lines = [
     `全球晨报｜${formatBriefingDate(result.briefingDate)}`,
     `覆盖时间：${result.window.label}`,
@@ -267,14 +332,23 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
 
   for (const category of config.categories) {
     const events = result.events.filter((event) => event.category === category.id);
-    if (events.length === 0) continue;
+    const categoryCoverage = coverageByCategory.get(category.id) || { ...category, status: 'no-qualified-candidate', candidateCount: 0 };
     lines.push(`${category.number}、${category.name}`, '');
+    if (events.length === 0) {
+      lines.push(categoryEmptyMessage(categoryCoverage), '');
+      continue;
+    }
     events.forEach((event, eventIndex) => {
       let subNumber = 1;
       lines.push(`${eventIndex + 1}. ${event.title}`);
       lines.push(`公开时间：${formatBeijingDateTime(new Date(event.publishedAt))}`);
       if (event.tags && event.tags.length > 0) lines.push(`标签：${event.tags.join('、')}`);
-      lines.push('', event.conclusion, '');
+      lines.push('', `核心判断：${event.conclusion}`, '');
+      for (const [title, value] of [['大白话讲解', event.plainLanguage], ['相关影响', event.impact], ['判断边界', event.judgmentBoundary]]) {
+        if (!value) continue;
+        lines.push(`${eventIndex + 1}.${subNumber} ${title}`, value, '');
+        subNumber += 1;
+      }
       for (const section of event.sections || []) {
         lines.push(`${eventIndex + 1}.${subNumber} ${section.title}`);
         subNumber += 1;
@@ -288,6 +362,11 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
       if (event.formula) {
         lines.push(event.formula.symbol, event.formula.text, ...(event.formula.notes || []), '');
       }
+      if (event.dataTable && Array.isArray(event.dataTable.rows) && event.dataTable.rows.length > 0) {
+        lines.push(event.dataTable.headings.join('｜'));
+        event.dataTable.rows.forEach((row) => lines.push(row.join('｜')));
+        lines.push('');
+      }
       if (event.watch && event.watch.length > 0) {
         lines.push(`${eventIndex + 1}.${subNumber} 接下来观察`);
         subNumber += 1;
@@ -300,13 +379,18 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
     });
   }
 
-  if (result.thinking) {
-    lines.push('三分钟商业思考', result.thinking.title);
-    if (result.thinking.context) lines.push(result.thinking.context);
+  const thinking = result.thinking || coverage.fallbackThinking;
+  if (thinking) {
+    lines.push('三分钟商业思考', thinking.title);
+    if (thinking.scenario) lines.push(`你的角色：${thinking.scenario}`);
+    if (thinking.decisionQuestion) lines.push(`决策题：${thinking.decisionQuestion}`);
+    if (Array.isArray(thinking.options) && thinking.options.length > 0) lines.push('二选一：', ...thinking.options);
+    if (Array.isArray(thinking.checks) && thinking.checks.length > 0) lines.push('作答前核验：', ...thinking.checks);
+    if (thinking.context) lines.push(thinking.context);
     lines.push('');
   }
 
   return lines.join('\r\n').trim() + '\r\n';
 }
 
-module.exports = { escapeHtml, renderHtml, renderPlainText };
+module.exports = { categoryEmptyMessage, escapeHtml, fallbackCoverage, renderHtml, renderPlainText };

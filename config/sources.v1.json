@@ -27,6 +27,12 @@
       "minimumAvailable": 1
     },
     {
+      "id": "technology-earnings",
+      "name": "重点科技公司财报",
+      "sourceIds": ["nvidia-investor-results", "microsoft-investor-results", "tsmc-investor-results"],
+      "minimumAvailable": 1
+    },
+    {
       "id": "china-macro-release",
       "name": "中国宏观数据发布发现",
       "sourceIds": ["nbs-data", "nbs-release-calendar"],
@@ -124,6 +130,55 @@
         "type": "rss",
         "url": "https://blogs.microsoft.com/feed/",
         "allowedHosts": ["blogs.microsoft.com"]
+      }
+    },
+    {
+      "id": "nvidia-investor-results",
+      "name": "NVIDIA投资者关系财报",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "investor-relations",
+      "frequency": "daily",
+      "discovery": {
+        "type": "rss",
+        "url": "https://nvidianews.nvidia.com/releases.xml",
+        "allowedHosts": ["nvidianews.nvidia.com"],
+        "includeTitlePattern": "financial results|quarterly results",
+        "maxItems": 12
+      }
+    },
+    {
+      "id": "microsoft-investor-results",
+      "name": "微软投资者关系财报",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "investor-relations",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.microsoft.com/en-us/investor/default",
+        "allowedHosts": ["www.microsoft.com", "microsoft.com"],
+        "linkPattern": "^https://www\\.microsoft\\.com/en-us/investor/earnings/.+/press-release-webcast/?$",
+        "maxItems": 12
+      }
+    },
+    {
+      "id": "tsmc-investor-results",
+      "name": "台积电投资者关系财报",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "investor-relations",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://pr.tsmc.com/english",
+        "allowedHosts": ["pr.tsmc.com"],
+        "linkPattern": "^https://pr\\.tsmc\\.com/english/news/\\d+$",
+        "includeTitlePattern": "reports.*(?:quarter|eps)|(?:quarter|eps).*reports|earnings",
+        "maxItems": 12
       }
     },
     {
