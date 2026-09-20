@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { caseSchema, renderBusinessCase, renderBusinessCaseText } = require('../src/case.cjs');
+const { assertCaseReviewPassed, caseSchema, renderBusinessCase, renderBusinessCaseText } = require('../src/case.cjs');
 
 const sample = {
   title: '企业扩张案例', subtitle: '定价、资本投入与现金回报',
@@ -25,4 +25,16 @@ test('商业案例HTML和纯文本包含相同标题、问题和来源', () => {
     assert.match(text, new RegExp(value.replace(/[?]/g, '\\?')));
   }
   assert.match(html, /prefers-color-scheme:dark/);
+});
+
+test('商业案例审校拒绝时保留可诊断上下文并使用受控错误码', () => {
+  assert.throws(
+    () => assertCaseReviewPassed({ passed: false, issues: [{ severity: 'blocking', problem: '案例数字无法由材料支持。' }] }, [{ sources: [{ url: 'https://example.com/source' }] }]),
+    (error) => {
+      assert.equal(error.code, 'CASE_REVIEW_BLOCKED');
+      assert.equal(error.context.review.issues[0].problem, '案例数字无法由材料支持。');
+      assert.deepEqual(error.context.materialSourceUrls, ['https://example.com/source']);
+      return true;
+    }
+  );
 });

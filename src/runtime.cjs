@@ -15,6 +15,7 @@ const { generateBusinessCase, renderBusinessCase, renderBusinessCaseText } = req
 const { acquireLock, readJson, recordRun, releaseLock, updateSentState } = require('./state.cjs');
 const { isModelInvocationAllowed, isMorningBriefingReady } = require('./model-window.cjs');
 const { appendRunLog } = require('./run-log.cjs');
+const CONTROLLED_STOP_CODES = Object.freeze(['MODEL_OUTPUT_INVALID', 'NO_PUBLISHABLE_CONTENT', 'COVERAGE_INSUFFICIENT', 'MONTHLY_BUDGET_EXCEEDED', 'DAILY_TOKEN_BUDGET_EXCEEDED', 'CASE_REVIEW_BLOCKED']);
 
 function projectPath(root, value) {
   const resolved = path.resolve(root, value);
@@ -305,14 +306,16 @@ async function runDaily(options = {}) {
     }
     // 服务商输出无法解析时已经尝试过一次完整重写。将诊断留在私有产物中，
     // 但不把可预期的供应商格式波动升级成 GitHub 的“任务失败”邮件。
-    if (error && ['MODEL_OUTPUT_INVALID', 'NO_PUBLISHABLE_CONTENT', 'COVERAGE_INSUFFICIENT', 'MONTHLY_BUDGET_EXCEEDED', 'DAILY_TOKEN_BUDGET_EXCEEDED'].includes(error.code)) {
+    if (error && CONTROLLED_STOP_CODES.includes(error.code)) {
       const failurePath = writeFailure(outputDirectory, runId, phase, error, error.context);
       const status = {
         runId,
         status: error.code === 'MODEL_OUTPUT_INVALID'
           ? 'model-output-stopped'
-          : error.code === 'COVERAGE_INSUFFICIENT'
-            ? 'coverage-stopped'
+            : error.code === 'COVERAGE_INSUFFICIENT'
+              ? 'coverage-stopped'
+            : error.code === 'CASE_REVIEW_BLOCKED'
+              ? 'case-review-stopped'
             : error.code === 'MONTHLY_BUDGET_EXCEEDED' || error.code === 'DAILY_TOKEN_BUDGET_EXCEEDED'
               ? 'budget-stopped'
               : 'content-stopped',
@@ -364,12 +367,28 @@ async function runWeeklyCase(options) {
     sources: [{ organization: item.sourceName, title: item.title, url: item.url }]
   })).slice(0, 4);
   if (materials.length === 0) throw new Error('过去七天的案例候选原文均无法公开读取。');
-  const generated = await generateBusinessCase(materials, {
-    ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'),
-    monthlyBudgetCny: options.monthlyBudgetCny ?? monthlyBudgetForRun(),
-    budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
-    usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
-  });
+  let generated;
+  try {
+    generated = await generateBusinessCase(materials, {
+      now: options.now,
+      allowWeeklyCase: true,
+      ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'),
+      monthlyBudgetCny: options.monthlyBudgetCny ?? monthlyBudgetForRun(),
+      budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
+      usdCnyRate: options.usdCnyRate ?? 7.2
+    });
+  } catch (error) {
+    if (error && error.code === 'CASE_REVIEW_BLOCKED') {
+      writeJsonAtomic(path.join(options.outputDirectory, `business-case-${options.date}.audit.json`), {
+        status: 'review-blocked',
+        review: error.context && error.context.review,
+        materialCount: materials.length,
+        materialSourceUrls: [...new Set(materials.flatMap((item) => (item.sources || []).map((source) => source.url)))],
+        historyRecorded: false
+      });
+    }
+    throw error;
+  }
   const html = renderBusinessCase(generated.content, options.date);
   const text = renderBusinessCaseText(generated.content, options.date);
   const subject = `[商业案例] ${generated.content.title}`;

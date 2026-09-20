@@ -25,6 +25,28 @@ function caseReviewSchema() {
   };
 }
 
+function assertCaseReviewPassed(review, materials = []) {
+  const issues = Array.isArray(review && review.issues) ? review.issues : [];
+  const blockingIssues = issues.filter((issue) => issue && issue.severity === 'blocking');
+  if (review && review.passed === true && blockingIssues.length === 0) return review;
+
+  const error = new Error('周日商业案例未通过独立审校。');
+  error.code = 'CASE_REVIEW_BLOCKED';
+  error.context = {
+    review: {
+      passed: review && review.passed === true,
+      issues: issues.slice(0, 8).map((issue) => ({
+        severity: issue && issue.severity,
+        problem: String(issue && issue.problem || '').slice(0, 500)
+      }))
+    },
+    materialCount: materials.length,
+    materialEntities: [...new Set(materials.map((item) => item.entityKey).filter(Boolean))],
+    materialSourceUrls: [...new Set(materials.flatMap((item) => (item.sources || []).map((source) => source.url)).filter(Boolean))]
+  };
+  throw error;
+}
+
 function escapeHtml(value) {
   return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
@@ -51,7 +73,7 @@ async function generateBusinessCase(materials, options = {}) {
     userPrompt: `<不可信原始材料>\n${JSON.stringify(materials)}\n</不可信原始材料>\n<待审案例>\n${JSON.stringify(generated.parsed)}\n</待审案例>`,
     schemaName: 'weekly_business_case_review', schema: caseReviewSchema(), maxOutputTokens: 600
   });
-  if (!review.parsed.passed || review.parsed.issues.some((issue) => issue.severity === 'blocking')) throw new Error('周日商业案例未通过独立审校。');
+  assertCaseReviewPassed(review.parsed, materials);
   return { content: generated.parsed, review: review.parsed, costs: [generated.cost, review.cost] };
 }
 
@@ -69,4 +91,4 @@ function renderBusinessCaseText(caseData, date) {
   return `${caseData.title}\n${caseData.subtitle}｜${date}\n\n${sections}\n\n决策问题\n${questions}\n\n原始来源\n${sources}\n`;
 }
 
-module.exports = { caseReviewSchema, caseSchema, generateBusinessCase, renderBusinessCase, renderBusinessCaseText };
+module.exports = { assertCaseReviewPassed, caseReviewSchema, caseSchema, generateBusinessCase, renderBusinessCase, renderBusinessCaseText };
