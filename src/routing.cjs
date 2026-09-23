@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { getCoverageWindow, jaccardSimilarity } = require('./pipeline.cjs');
+const { withinEditorialWindow } = require('./observation.cjs');
 
 const MAX_MODEL_SOURCES_PER_EVENT = 2;
 // This is a source-evidence bound, not a daily Token cap. It preserves enough
@@ -58,7 +59,7 @@ const IMPACT_OVERRIDE = [
 // 仅 GitHub 自身的三个受控入口拥有“结构性开源相关性”：热门仓库、平台
 // 更新和安全公告本身就是开发者生态事件。这个窄规则不会把其他来源登记的
 // 标签当作事实，因此不会重现选举诉讼、航空事故被错误归类的问题。
-const GITHUB_ECOSYSTEM_SOURCE_IDS = new Set(['github-changelog', 'github-trending', 'github-advisories']);
+const GITHUB_ECOSYSTEM_SOURCE_IDS = new Set(['github-changelog', 'github-trending', 'github-rising', 'github-advisories']);
 const NON_OPEN_SOURCE_SIGNALS = Object.freeze([
   '国防', '防务', '军事', '军事工业', '军工', '弹药', '导弹', '武器', '军火', '战略储备', '弹药库存',
   '国防部', '五角大楼', '国防采购', '国防工业基础', 'industrial base', 'ammunition', 'munitions',
@@ -142,6 +143,7 @@ function makeRoutedCandidate(detail) {
     fingerprint: createClusterFingerprint(category, detail.title),
     title: detail.title,
     publishedAt: detail.publishedAt,
+    observation: detail.observation || null,
     sources: [{
       sourceId: detail.sourceId,
       organization: detail.sourceName,
@@ -160,6 +162,7 @@ function makeRoutedCandidate(detail) {
 }
 
 function mergeClusters(left, right) {
+  if (Date.parse(right.publishedAt) > Date.parse(left.publishedAt)) [left, right] = [right, left];
   const seen = new Set();
   const sources = [];
   for (const source of [...left.sources, ...right.sources]) {
@@ -199,8 +202,7 @@ function prepareModelCandidates(detailResult, briefingDate) {
     if (detail.access === 'paid') reasons.push('来源存在付费墙。');
     if (!detail.publishedAt) reasons.push('无法核实公开时间。');
     else {
-      const published = new Date(detail.publishedAt);
-      if (published < window.start || published >= window.end) reasons.push('不在本期二十四小时窗口内。');
+      if (!withinEditorialWindow(detail, window)) reasons.push('不在本期二十四小时窗口内。');
     }
     const fullText = `${detail.title || ''}\n${detail.text || ''}`;
     const exclusion = detectHardExclusion(fullText);

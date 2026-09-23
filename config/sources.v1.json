@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updatedAt": "2026-08-22",
+  "updatedAt": "2026-09-23",
   "coverageGroups": [
     {
       "id": "international-ai-official",
@@ -23,13 +23,7 @@
     {
       "id": "developer-ecosystem",
       "name": "开发者与开源生态",
-      "sourceIds": ["github-changelog", "github-trending", "github-advisories"],
-      "minimumAvailable": 1
-    },
-    {
-      "id": "technology-earnings",
-      "name": "重点科技公司财报",
-      "sourceIds": ["nvidia-investor-results", "microsoft-investor-results", "tsmc-investor-results"],
+      "sourceIds": ["github-changelog", "github-advisories", "github-rising"],
       "minimumAvailable": 1
     },
     {
@@ -55,6 +49,12 @@
       "name": "国际权威媒体综合观察",
       "sourceIds": ["reuters-world", "reuters-business", "bbc-world", "bbc-business", "bbc-technology", "ap-world", "ap-business", "ap-technology"],
       "minimumAvailable": 3
+    },
+    {
+      "id": "technology-earnings",
+      "name": "重点科技公司财报",
+      "sourceIds": ["nvidia-investor-results", "microsoft-investor-results", "tsmc-investor-results"],
+      "minimumAvailable": 1
     }
   ],
   "sources": [
@@ -130,55 +130,6 @@
         "type": "rss",
         "url": "https://blogs.microsoft.com/feed/",
         "allowedHosts": ["blogs.microsoft.com"]
-      }
-    },
-    {
-      "id": "nvidia-investor-results",
-      "name": "NVIDIA投资者关系财报",
-      "region": "国际",
-      "topics": ["ai", "digital-economy"],
-      "tier": "S",
-      "kind": "investor-relations",
-      "frequency": "daily",
-      "discovery": {
-        "type": "rss",
-        "url": "https://nvidianews.nvidia.com/releases.xml",
-        "allowedHosts": ["nvidianews.nvidia.com"],
-        "includeTitlePattern": "financial results|quarterly results",
-        "maxItems": 12
-      }
-    },
-    {
-      "id": "microsoft-investor-results",
-      "name": "微软投资者关系财报",
-      "region": "国际",
-      "topics": ["ai", "digital-economy"],
-      "tier": "S",
-      "kind": "investor-relations",
-      "frequency": "daily",
-      "discovery": {
-        "type": "html",
-        "url": "https://www.microsoft.com/en-us/investor/default",
-        "allowedHosts": ["www.microsoft.com", "microsoft.com"],
-        "linkPattern": "^https://www\\.microsoft\\.com/en-us/investor/earnings/.+/press-release-webcast/?$",
-        "maxItems": 12
-      }
-    },
-    {
-      "id": "tsmc-investor-results",
-      "name": "台积电投资者关系财报",
-      "region": "国际",
-      "topics": ["ai", "digital-economy"],
-      "tier": "S",
-      "kind": "investor-relations",
-      "frequency": "daily",
-      "discovery": {
-        "type": "html",
-        "url": "https://pr.tsmc.com/english",
-        "allowedHosts": ["pr.tsmc.com"],
-        "linkPattern": "^https://pr\\.tsmc\\.com/english/news/\\d+$",
-        "includeTitlePattern": "reports.*(?:quarter|eps)|(?:quarter|eps).*reports|earnings",
-        "maxItems": 12
       }
     },
     {
@@ -259,21 +210,6 @@
         "type": "rss",
         "url": "https://github.blog/changelog/feed/",
         "allowedHosts": ["github.blog"]
-      }
-    },
-    {
-      "id": "github-trending",
-      "name": "GitHub每日热门项目",
-      "region": "国际",
-      "topics": ["open-source-tech", "ai", "digital-economy"],
-      "tier": "B",
-      "kind": "community-signal",
-      "frequency": "daily",
-      "discovery": {
-        "type": "github-trending",
-        "url": "https://github.com/trending?since=daily",
-        "allowedHosts": ["github.com"],
-        "maxItems": 25
       }
     },
     {
@@ -891,6 +827,78 @@
         "allowedHosts": ["apnews.com"],
         "linkPattern": "^https://apnews\\.com/article/.+",
         "maxItems": 30
+      }
+    },
+    {
+      "id": "nvidia-investor-results",
+      "name": "NVIDIA投资者关系财报",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "investor-relations",
+      "frequency": "daily",
+      "discovery": {
+        "type": "rss",
+        "url": "https://nvidianews.nvidia.com/releases.xml",
+        "allowedHosts": ["nvidianews.nvidia.com"],
+        "includeTitlePattern": "financial results|quarterly results",
+        "maxItems": 12
+      }
+    },
+    {
+      "id": "microsoft-investor-results",
+      "name": "微软投资者关系财报",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "investor-relations",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.microsoft.com/en-us/investor/default",
+        "allowedHosts": ["www.microsoft.com", "microsoft.com"],
+        "linkPattern": "^https://www\\.microsoft\\.com/en-us/investor/earnings/.+/press-release-webcast/?$",
+        "maxItems": 12
+      }
+    },
+    {
+      "id": "tsmc-investor-results",
+      "name": "台积电投资者关系财报",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "investor-relations",
+      "frequency": "daily",
+      "discovery": {
+        "type": "html",
+        "url": "https://pr.tsmc.com/english",
+        "allowedHosts": ["pr.tsmc.com"],
+        "linkPattern": "^https://pr\\.tsmc\\.com/english/news/\\d+$",
+        "includeTitlePattern": "reports.*(?:quarter|eps)|(?:quarter|eps).*reports|earnings",
+        "maxItems": 12
+      }
+    },
+    {
+      "id": "github-rising",
+      "name": "GitHub近期关注度上升项目",
+      "region": "国际",
+      "topics": ["open-source-tech", "ai", "digital-economy"],
+      "tier": "B",
+      "kind": "community-signal",
+      "frequency": "daily",
+      "discovery": {
+        "type": "github-momentum",
+        "url": "https://github.com/trending",
+        "allowedHosts": ["github.com", "api.github.com"],
+        "maxItems": 25,
+        "momentumThresholds": {
+          "dailyStars": 100,
+          "smallDailyStars": 30,
+          "dailyRate": 0.1,
+          "weeklyStars": 500,
+          "smallWeeklyStars": 100,
+          "weeklyRate": 0.25
+        }
       }
     }
   ]

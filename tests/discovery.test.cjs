@@ -115,13 +115,15 @@ test('JSON API按照注册字段映射发现条目', () => {
   assert.equal(items[0].publishedAt, '2026-08-16T00:00:00.000Z');
 });
 
-test('GitHub热门页只提取仓库卡片并记录观察时间', () => {
+test('GitHub热门页保留仓库卡片和可审校的当日观察信息', () => {
   const source = { id: 'github-trending', name: 'GitHub热门', tier: 'B', kind: 'community-signal', topics: ['open-source-tech'], discovery: { type: 'github-trending', url: 'https://github.com/trending?since=daily', allowedHosts: ['github.com'], maxItems: 5 } };
-  const html = '<a href="/login">Login</a><article class="Box-row"><h2><a href="/owner/project"> owner / project </a></h2></article>';
+  const html = '<a href="/login">Login</a><article class="Box-row"><h2><a href="/owner/project"> owner / project </a></h2><p>Developer tool for reproducible AI workflows</p><span>1,234 stars today</span></article>';
   const items = parseGithubTrending(html, source, new Date('2026-08-17T00:00:00Z'));
   assert.equal(items.length, 1);
   assert.equal(items[0].title, 'owner/project');
   assert.equal(items[0].publishedAt, '2026-08-17T00:00:00.000Z');
+  assert.match(items[0].prefetchedText, /reproducible AI workflows/);
+  assert.match(items[0].prefetchedText, /1,234 stars today/);
 });
 
 test('X API只保留官方帖子的原文、时间与原始链接', () => {

@@ -1,4 +1,5 @@
 'use strict';
+const { eventTimeLabel } = require('./observation.cjs');
 
 const { PROJECT_CONFIG } = require('./config.cjs');
 const { formatBeijingDateTime } = require('./pipeline.cjs');
@@ -153,7 +154,7 @@ function renderArticle(event, eventNumber) {
   return `
     <article class="article">
       <h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)}</h2>
-      <div class="meta">公开时间：${escapeHtml(formatBeijingDateTime(new Date(event.publishedAt)))}${evidence}</div>
+      <div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml(formatBeijingDateTime(new Date(event.publishedAt)))}${evidence}</div>
       ${renderTags(event)}
       <div class="lead-label">核心判断</div>
       <p class="lead">${escapeHtml(event.conclusion)}</p>
@@ -341,7 +342,7 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
     events.forEach((event, eventIndex) => {
       let subNumber = 1;
       lines.push(`${eventIndex + 1}. ${event.title}`);
-      lines.push(`公开时间：${formatBeijingDateTime(new Date(event.publishedAt))}`);
+      lines.push(`${eventTimeLabel(event)}：${formatBeijingDateTime(new Date(event.publishedAt))}`);
       if (event.tags && event.tags.length > 0) lines.push(`标签：${event.tags.join('、')}`);
       lines.push('', `核心判断：${event.conclusion}`, '');
       for (const [title, value] of [['大白话讲解', event.plainLanguage], ['相关影响', event.impact], ['判断边界', event.judgmentBoundary]]) {

@@ -8,7 +8,7 @@ const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
 
-const DISCOVERY_TYPES = new Set(['rss', 'html', 'json', 'github-trending', 'x-api']);
+const DISCOVERY_TYPES = new Set(['rss', 'html', 'json', 'github-trending', 'github-momentum', 'x-api']);
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 const MAX_ITEMS_PER_SOURCE = 60;
 const CACHE_SCHEMA_VERSION = 2;
@@ -176,11 +176,23 @@ function parseJsonDiscovery(content, source) {
 
 function parseGithubTrending(content, source, observedAt = new Date()) {
   const items = [];
+  const period = new URL(source.discovery.url).searchParams.get('since') === 'weekly' ? 'weekly' : 'daily';
   for (const match of String(content).matchAll(/<article\b[^>]*class=["'][^"']*Box-row[^"']*["'][^>]*>([\s\S]*?)<\/article>/gi)) {
-    const heading = /<h2\b[^>]*>[\s\S]*?<a\b[^>]*href=["'](\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(match[1]);
+    const card = match[1];
+    const heading = /<h2\b[^>]*>[\s\S]*?<a\b[^>]*href=["'](\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(card);
     if (!heading) continue;
     const repository = heading[1].slice(1);
-    items.push(makeDiscoveryItem(source, repository, new URL(heading[1], source.discovery.url).toString(), observedAt.toISOString()));
+    const cardText = stripMarkup(card);
+    // 热门页是观察信号而不是仓库发布页。保留卡片原文（描述、语言和当日星标
+    // 增量）作为可审校证据，避免后续抓仓库首页后丢失“为什么今天值得关注”。
+    const prefetchedText = [
+      `GitHub Trending 观察时间：${observedAt.toISOString()}`,
+      `榜单周期：${period === 'weekly' ? '本周' : '当日'}；这是关注度观察，不是项目发布日期。`,
+      `仓库：${repository}`,
+      `热门页卡片：${cardText}`
+    ].join('\n');
+    const item = makeDiscoveryItem(source, repository, new URL(heading[1], source.discovery.url).toString(), observedAt.toISOString());
+    items.push(item && { ...item, observation: { kind: 'github-trending', period, observedAt: observedAt.toISOString(), sourceUrl: `https://github.com/trending?since=${period}`, repositoryUrl: item.url }, prefetchedText, prefetchedLanguage: 'und', prefetchedTransport: 'github-trending' });
   }
   return uniqueItems(items, source.discovery.maxItems || 25);
 }
@@ -292,6 +304,7 @@ async function fetchWithCurl(source, timeoutMs) {
 }
 
 async function fetchSource(source, options = {}) {
+  if (source.discovery.type === 'github-momentum') return require('./github-momentum.cjs').collectGithubMomentum(source, options);
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new Error('当前Node.js运行时不支持fetch。');
   const cacheDirectory = options.cacheDirectory;

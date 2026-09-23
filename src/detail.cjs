@@ -42,17 +42,9 @@ function extractPublishedAt(html) {
     /["']datePublished["']\s*:\s*["']([^"']+)["']/i,
     /["']dateModified["']\s*:\s*["']([^"']+)["']/i
   ]);
-  if (value) {
-    const date = new Date(decodeJsonLdString(value));
-    if (!Number.isNaN(date.getTime()) && date.getUTCFullYear() >= 2000) return date.toISOString();
-  }
-  const text = stripMarkup(html);
-  const english = /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},\s+20\d{2}\b/i.exec(text);
-  const chinese = /(20\d{2})[年/.-](\d{1,2})[月/.-](\d{1,2})日?/.exec(text);
-  const fallback = english ? new Date(`${english[0]} 12:00:00 UTC`) : chinese
-    ? new Date(`${chinese[1]}-${String(chinese[2]).padStart(2, '0')}-${String(chinese[3]).padStart(2, '0')}T04:00:00Z`)
-    : null;
-  return fallback && !Number.isNaN(fallback.getTime()) ? fallback.toISOString() : null;
+  if (!value) return null;
+  const date = new Date(decodeJsonLdString(value));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function extractCanonicalUrl(html, fallbackUrl) {
@@ -91,7 +83,18 @@ function extractReadableText(html) {
     const text = stripMarkup(match[2]);
     if (text.length >= 20 && !blocks.includes(text)) blocks.push(text);
   }
-  return blocks.join('\n\n').slice(0, MAX_EXTRACTED_CHARACTERS);
+  const structured = blocks.join('\n\n').slice(0, MAX_EXTRACTED_CHARACTERS);
+  // Some investor-relations platforms render their article body as nested divs
+  // and spans rather than semantic paragraphs. Fall back to plain body text only
+  // when semantic extraction found nothing. This path intentionally preserves
+  // forms: some investor-relations platforms wrap their whole article in one.
+  if (structured.length >= 120) return structured;
+  const looseBody = firstMatchRaw(String(html), [/<body\b[^>]*>([\s\S]*?)<\/body>/i]) || String(html);
+  const fallback = looseBody
+    // Investor-relations pages frequently wrap their entire article in one form,
+    // so forms cannot be removed in this fallback path.
+    .replace(/<(script|style|noscript|svg|canvas)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  return stripMarkup(fallback).slice(0, MAX_EXTRACTED_CHARACTERS);
 }
 
 function firstMatchRaw(content, patterns) {
@@ -162,7 +165,8 @@ async function downloadDetail(item, source, options = {}) {
 }
 
 function extractDetail(item, source, html, finalUrl = item.url) {
-  const title = extractTitle(html) || item.title;
+  const extractedTitle = extractTitle(html);
+  const title = /^(document|document 1|sec filing)$/i.test(extractedTitle) ? item.title : extractedTitle || item.title;
   const publishedAt = extractPublishedAt(html) || item.publishedAt || null;
   const text = extractReadableText(html);
   const canonicalUrl = extractCanonicalUrl(html, finalUrl);

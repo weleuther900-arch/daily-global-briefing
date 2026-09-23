@@ -1,4 +1,5 @@
 'use strict';
+const { withinEditorialWindow } = require('./observation.cjs');
 
 const crypto = require('node:crypto');
 const { PROJECT_CONFIG } = require('./config.cjs');
@@ -153,7 +154,7 @@ function validateEvent(event, window, config = PROJECT_CONFIG, options = {}) {
   const publishedAt = new Date(event.publishedAt);
   if (Number.isNaN(publishedAt.getTime())) {
     errors.push('publishedAt不是有效时间。');
-  } else if (options.allowHistoricalSourceWindow !== true && (publishedAt < window.start || publishedAt >= window.end)) {
+  } else if (options.allowHistoricalSourceWindow !== true && !withinEditorialWindow(event, window)) {
     errors.push('公开时间不在本期二十四小时窗口内。');
   }
 

@@ -14,6 +14,21 @@ function isModelInvocationAllowed(now = new Date()) {
   return minute >= 23 * 60 || minute <= 8 * 60 + 30;
 }
 
+// 周日商业案例是用户明确要求在北京时间20:00单独投递的固定内容。仅为
+// 该运行模式允许补跑到周一08:30，容纳调度排队。日报门禁不受影响。
+function isWeeklyCaseInvocationAllowed(now = new Date()) {
+  const beijing = new Date(new Date(now).getTime() + 8 * 60 * 60 * 1000);
+  const minute = beijingMinuteOfDay(now);
+  return (beijing.getUTCDay() === 0 && minute >= 20 * 60)
+    || (beijing.getUTCDay() === 1 && minute <= 8 * 60 + 30);
+}
+
+function weeklyCaseDate(now = new Date()) {
+  const beijing = new Date(new Date(now).getTime() + 8 * 60 * 60 * 1000);
+  if (beijing.getUTCDay() === 1 && beijingMinuteOfDay(now) <= 8 * 60 + 30) beijing.setUTCDate(beijing.getUTCDate() - 1);
+  return beijing.toISOString().slice(0, 10);
+}
+
 // 正式晨报的来源窗口在北京时间 07:00 截止。云端定时器可以提前唤醒，
 // 但不能因准点启动而在窗口尚未结束时提前生成；若该次触发被 GitHub 延迟，
 // 则只要实际启动仍落在 07:00—08:30，仍可正常完成。
@@ -29,8 +44,9 @@ function modelWindowError(now = new Date()) {
   return error;
 }
 
-function assertModelInvocationAllowed(now = new Date()) {
-  if (!isModelInvocationAllowed(now)) throw modelWindowError(now);
+function assertModelInvocationAllowed(now = new Date(), options = {}) {
+  if (isModelInvocationAllowed(now) || (options.allowWeeklyCase === true && isWeeklyCaseInvocationAllowed(now))) return;
+  throw modelWindowError(now);
 }
 
-module.exports = { assertModelInvocationAllowed, beijingMinuteOfDay, isModelInvocationAllowed, isMorningBriefingReady, modelWindowError };
+module.exports = { assertModelInvocationAllowed, beijingMinuteOfDay, isModelInvocationAllowed, isMorningBriefingReady, isWeeklyCaseInvocationAllowed, modelWindowError, weeklyCaseDate };
