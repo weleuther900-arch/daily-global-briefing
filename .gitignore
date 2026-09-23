@@ -9,6 +9,7 @@ node_modules/
 output/
 .cache/
 .runtime/
+.diagnostics/
 state/
 logs/
 .tmp-run-*/
