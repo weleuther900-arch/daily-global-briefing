@@ -154,6 +154,8 @@ function validateEvent(event, window, config = PROJECT_CONFIG, options = {}) {
   const publishedAt = new Date(event.publishedAt);
   if (Number.isNaN(publishedAt.getTime())) {
     errors.push('publishedAt不是有效时间。');
+  } else if (event.contentKind === 'background' && options.editorialVersion === 2) {
+    if (publishedAt.getTime() >= window.start.getTime() || event.background?.originalPublishedAt !== event.publishedAt || !event.background?.reason) errors.push('背景必须保留已核实原始日期和当前阅读价值，且不能借用未来时间。');
   } else if (options.allowHistoricalSourceWindow !== true && !withinEditorialWindow(event, window)) {
     errors.push('公开时间不在本期二十四小时窗口内。');
   }
@@ -264,7 +266,7 @@ function runEditorialPipeline(input, config = PROJECT_CONFIG, options = {}) {
   const rejected = [];
 
   for (const candidate of input.candidates || []) {
-    const errors = validateEvent(candidate, window, config, options);
+    const errors = validateEvent(candidate, window, config, {...options,editorialVersion:input.editorialVersion});
     if (errors.length > 0) {
       rejected.push({ title: candidate && candidate.title ? candidate.title : '未命名候选', reasons: errors });
       continue;
@@ -290,11 +292,13 @@ function runEditorialPipeline(input, config = PROJECT_CONFIG, options = {}) {
 
   const coverage = buildCategoryCoverage(deduplicated.events, input.categoryCandidateCounts, config);
   return {
+    editorialVersion: input.editorialVersion || 1,
     briefingDate: input.briefingDate,
     window,
     events: deduplicated.events,
     coverage,
-    thinking: input.thinking || coverage.fallbackThinking,
+    thinking: input.thinking || (input.editorialVersion === 2 ? null : coverage.fallbackThinking),
+    thinkingStatus: input.thinkingStatus || null,
     audit: {
       candidateCount: (input.candidates || []).length,
       acceptedBeforeDedup: accepted.length,

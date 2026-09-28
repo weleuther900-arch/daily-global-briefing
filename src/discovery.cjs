@@ -8,7 +8,7 @@ const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
 
-const DISCOVERY_TYPES = new Set(['rss', 'html', 'json', 'github-trending', 'github-momentum', 'x-api']);
+const DISCOVERY_TYPES = new Set(['rss', 'html', 'sitemap', 'json', 'github-trending', 'github-momentum', 'x-api']);
 const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 const MAX_ITEMS_PER_SOURCE = 60;
 const CACHE_SCHEMA_VERSION = 2;
@@ -199,6 +199,14 @@ function parseGithubTrending(content, source, observedAt = new Date()) {
 
 function parseSourceContent(content, source, responseUrl) {
   switch (source.discovery.type) {
+    case 'sitemap': {
+      const pattern=new RegExp(source.discovery.linkPattern || '^https://');
+      return uniqueItems([...String(content).matchAll(/<loc>([^<]+)<\/loc>/g)].map(match=>{
+        const url=decodeEntities(match[1]);
+        if(!pattern.test(url))return null;
+        return makeDiscoveryItem(source,decodeURIComponent(url.split('/').filter(Boolean).at(-1)).replaceAll('-',' '),url,null);
+      }),source.discovery.maxItems || MAX_ITEMS_PER_SOURCE);
+    }
     case 'rss': return parseRssOrAtom(content, source);
     case 'html': return parseHtmlLinks(content, source, responseUrl);
     case 'json': return parseJsonDiscovery(content, source);
@@ -310,7 +318,8 @@ async function fetchSource(source, options = {}) {
   const cacheDirectory = options.cacheDirectory;
   const cachePath = cacheDirectory ? path.join(cacheDirectory, `${source.id}.json`) : null;
   const previous = cachePath ? readCache(cachePath) : null;
-  const currentCache = previous && previous.schemaVersion === CACHE_SCHEMA_VERSION ? previous : null;
+  const sourceSignature = JSON.stringify(source.discovery);
+  const currentCache = previous && previous.schemaVersion === CACHE_SCHEMA_VERSION && previous.sourceSignature === sourceSignature ? previous : null;
   const headers = {
     'Accept': source.discovery.type === 'json' ? 'application/json' : 'application/rss+xml, application/atom+xml, text/xml, text/html;q=0.9, */*;q=0.5',
     'User-Agent': source.discovery.userAgent || 'DailyGlobalBriefing/0.1 (+personal research; contact via repository owner)'
@@ -373,6 +382,7 @@ async function fetchSource(source, options = {}) {
     const healthStatus = 'healthy';
     const cacheValue = {
       schemaVersion: CACHE_SCHEMA_VERSION,
+      sourceSignature,
       sourceId: source.id,
       fetchedAt: new Date().toISOString(),
       etag: response.headers.get('etag'),
@@ -401,6 +411,7 @@ async function fetchSource(source, options = {}) {
         const healthStatus = 'healthy';
         const cacheValue = {
           schemaVersion: CACHE_SCHEMA_VERSION,
+      sourceSignature,
           sourceId: source.id,
           fetchedAt: new Date().toISOString(),
           etag: null,
@@ -450,6 +461,7 @@ function auditCoverageGroups(registry, sourceResults) {
       id: group.id,
       name: group.name,
       minimumAvailable: group.minimumAvailable,
+      requiredForDaily: group.requiredForDaily !== false,
       checkedCount: checkedIds.length,
       availableCount: availableIds.length,
       status: !completeCheck ? 'not-evaluated' : availableIds.length >= group.minimumAvailable ? 'available' : 'impaired'
@@ -471,7 +483,15 @@ async function collectSources(registry, options = {}) {
     while (cursor < selected.length) {
       const index = cursor;
       cursor += 1;
-      results[index] = await fetchSource(selected[index], options);
+      const source=selected[index];
+      results[index] = await fetchSource(source, options);
+      // 持续补漏入口仍需实际抓取正文和日期；不能把配置中的线索当作已核实事实。
+      const seeds=(source.editorialSeeds || []).map(seed=>{
+        const item=makeDiscoveryItem(source,seed.title,seed.url,null);
+        return item && {...item,editorialSeed:true};
+      });
+      results[index].items=uniqueItems([...seeds,...results[index].items]);
+      results[index].itemCount=results[index].items.length;
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, selected.length) }, () => worker()));

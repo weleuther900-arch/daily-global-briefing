@@ -10,7 +10,10 @@ const { integrityIssues } = require('./case-review.cjs');
 const { collectSources, writeJsonAtomic } = require('./discovery.cjs');
 const { enrichDiscoveryItems } = require('./detail.cjs');
 const { filterPreviouslySent, prepareModelCandidates } = require('./routing.cjs');
-const { generateAndReview } = require('./openai.cjs');
+const { generateEdition } = require('./editorial-engine.cjs');
+const { generateThinking } = require('./business-thinking.cjs');
+const { planEditorialDiscovery,prepareEditorialCandidates } = require('./editorial-candidates.cjs');
+const { recoverDeliveryHistory,recordDeliveredEdition,hash } = require('./editorial-history.cjs');
 const { runEditorialPipeline } = require('./pipeline.cjs');
 const { renderHtml, renderPlainText } = require('./render.cjs');
 const { buildMimeMessage, sendWithRetry } = require('./mime.cjs');
@@ -37,6 +40,13 @@ const WEEKLY_CASE_FALLBACK_SOURCE_IDS = Object.freeze([
   'github-changelog',
   'hugging-face-blog'
 ]);
+const TRADITIONAL_CASE_SOURCE_IDS = ['starbucks-news','starbucks-investor','unilever-news','coca-cola-investor'];
+function nextCaseSector(history={cases:[]}) {
+  const last=[...(history.cases || [])].sort((a,b)=>Date.parse(b.generatedAt || b.date)-Date.parse(a.generatedAt || a.date))[0];
+  if(!last)return 'technology';
+  const sector=last.sector || ((last.entityKeys || []).some(e=>['starbucks','unilever','coca-cola'].includes(e))?'traditional':'technology');
+  return sector==='technology'?'traditional':'technology';
+}
 const CASE_HISTORY_RETENTION_DAYS = 365;
 const CASE_ENTITY_COOLDOWN_DAYS = 28;
 const CASE_SOURCE_LIMIT = 16;
@@ -93,6 +103,7 @@ function writeFailure(outputDirectory, runId, phase, error, context = {}) {
 }
 
 function assertPublishableEditorialResult(result) {
+  if (result.editorialVersion === 2 && result.thinking?.reviewed === true) return;
   if (Array.isArray(result && result.events) && result.events.length > 0) return result;
   const rejectedCount = Array.isArray(result && result.audit && result.audit.rejected) ? result.audit.rejected.length : 0;
   const error = new Error(`确定性编辑校验未留下可投递内容（拒绝${rejectedCount}条）。`);
@@ -132,7 +143,7 @@ function hasSentRunForDate(runState, date) {
 }
 
 function getImpairedCoverageGroups(discovery) {
-  return (discovery.coverageGroups || []).filter((group) => group.status === 'impaired');
+  return (discovery.coverageGroups || []).filter((group) => group.status === 'impaired' && group.requiredForDaily !== false);
 }
 
 function selectedEventsFromOutput(outputDirectory, now = new Date()) {
@@ -175,9 +186,9 @@ function weeklyCaseSeeds(sentState, outputDirectory, now = new Date()) {
     .slice(0, 8);
 }
 
-function weeklyCaseFallbackSourceIds(registry, history = { cases: [] }, now = new Date()) {
+function weeklyCaseFallbackSourceIds(registry, history = { cases: [] }, now = new Date(), sector = nextCaseSector(history)) {
   const available = new Set((registry.sources || []).map((source) => source.id));
-  const eligible = WEEKLY_CASE_FALLBACK_SOURCE_IDS.filter((sourceId) => available.has(sourceId));
+  const eligible = (sector==='traditional'?TRADITIONAL_CASE_SOURCE_IDS:WEEKLY_CASE_FALLBACK_SOURCE_IDS).filter((sourceId) => available.has(sourceId));
   const cooldown = new Date(now.getTime() - CASE_ENTITY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000).getTime();
   const recentlyUsed = new Set((history.cases || [])
     .filter((entry) => new Date(entry.generatedAt || entry.date || 0).getTime() >= cooldown)
@@ -206,6 +217,9 @@ function caseEntityKey(sourceId) {
   if (id.startsWith('qwen-')) return 'qwen';
   if (id.startsWith('hugging-face-')) return 'hugging-face';
   if (id.startsWith('tsmc-')) return 'tsmc';
+  if (id.startsWith('starbucks-')) return 'starbucks';
+  if (id.startsWith('unilever-')) return 'unilever';
+  if (id.startsWith('coca-cola-')) return 'coca-cola';
   return id;
 }
 
@@ -229,6 +243,13 @@ function trimCaseDiscovery(discovery, perSourceLimit = CASE_ITEMS_PER_SOURCE_LIM
   };
 }
 
+function caseMaterialWeight(item) {
+  const title=String(item.title || '');
+  if(/conference call|participat(?:e|ion).*conference|announces timing|declares.*dividend|results conference/i.test(title))return 0;
+  if(/reports?.*results|quarter.*results|half.*results|performance|volume growth|营收|财报|业绩/i.test(title))return 3;
+  if(/strategy|manufactur|operations|acquir|joint venture|tender offer|经营|收购|战略/i.test(title))return 2;
+  return 1;
+}
 function selectWeeklyCaseMaterialGroups(details, history, now = new Date()) {
   const earliest = now.getTime() - CASE_HISTORY_RETENTION_DAYS * 86400000;
   const cooldown = now.getTime() - CASE_ENTITY_COOLDOWN_DAYS * 86400000;
@@ -236,7 +257,7 @@ function selectWeeklyCaseMaterialGroups(details, history, now = new Date()) {
   const recentEntities = new Set((history.cases || []).filter(entry => Date.parse(entry.generatedAt || entry.date) >= cooldown).flatMap(entry => entry.entityKeys || []));
   const groups = new Map();
   const seen = new Set();
-  for (const item of [...(details.items || [])].sort((a,b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))) {
+  for (const item of [...(details.items || [])].sort((a,b) => caseMaterialWeight(b)-caseMaterialWeight(a) || Date.parse(b.publishedAt) - Date.parse(a.publishedAt))) {
     const timestamp = Date.parse(item.publishedAt);
     const entityKey = caseEntityKey(item.sourceId);
     const url = String(item.url || '').replace(/\/$/, '');
@@ -255,10 +276,11 @@ function selectWeeklyCaseMaterials(details, history, now = new Date()) {
   return selectWeeklyCaseMaterialGroups(details, history, now)[0] || [];
 }
 
-function updateCaseHistory(stateDirectory, caseContent, materials, now = new Date()) {
+function updateCaseHistory(stateDirectory, caseContent, materials, now = new Date(), sector) {
   const history = readCaseHistory(stateDirectory, now);
   const entry = {
     generatedAt: now.toISOString(),
+    sector: sector || (materials.some(m=>['starbucks','unilever','coca-cola'].includes(m.entityKey))?'traditional':'technology'),
     title: caseContent.title,
     entityKeys: [...new Set(materials.map((item) => item.entityKey))],
     sourceUrls: [...new Set(materials.flatMap((item) => item.sources.map((source) => source.url)))]
@@ -273,7 +295,7 @@ async function runDaily(options = {}) {
   const mode = options.mode || 'final';
   const date = options.date || (mode === 'case' ? weeklyCaseDate(now) : beijingDate(now));
   const scanHour = String(new Date().getUTCHours()).padStart(2, '0');
-  const runId = options.runId || `${date}-${mode === 'scan' ? `scan-${scanHour}` : mode}`;
+  const runId = options.runId || `${date}-${mode === 'scan' ? `scan-${scanHour}` : mode}${options.validateOnly ? '-validation'+(options.caseSector?'-'+options.caseSector:'') : ''}`;
   const outputDirectory = projectPath(root, options.outputDirectory || 'output');
   const runtimeDirectory = projectPath(root, '.runtime');
   const stateDirectory = projectPath(root, 'state');
@@ -288,9 +310,9 @@ async function runDaily(options = {}) {
     const runStatePath = path.join(stateDirectory, 'runs.json');
     const runState = readJson(runStatePath, { runs: [] });
     const prior = runState.runs.find((item) => item.runId === runId && item.status === 'complete' && item.sent === true);
-    if (prior) return finish({ ...prior, idempotentSkip: true });
+    if (prior && !options.validateOnly) { if(mode!=='case')recoverDeliveryHistory(root); return finish({ ...prior, idempotentSkip: true }); }
     const deliveredCase = mode === 'case' && runState.runs.find(item => item.kind === 'business-case' && item.date === date && item.sent === true);
-    if (deliveredCase) return finish({ ...deliveredCase, idempotentSkip: true });
+    if (deliveredCase && !options.validateOnly) return finish({ ...deliveredCase, idempotentSkip: true });
 
     // 夜间恢复任务只在当天尚未成功投递时补跑，正常日不产生额外模型调用或邮件。
     if (mode === 'recovery' && hasSentRunForDate(runState, date)) {
@@ -323,7 +345,7 @@ async function runDaily(options = {}) {
     if (mode === 'case') {
       phase = 'weekly-case';
       log('phase-start');
-      return finish(await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, now, monthlyBudgetCny, send: options.send === true, validateOnly: options.validateOnly === true, services: options.caseServices }));
+      return finish(await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, now, monthlyBudgetCny, send: options.send === true, validateOnly: options.validateOnly === true, caseSector: options.validateOnly ? options.caseSector : undefined, services: options.caseServices }));
     }
     if (options.fixturePath) {
       phase = 'fixture-build';
@@ -335,12 +357,14 @@ async function runDaily(options = {}) {
 
     phase = 'discovery';
     log('phase-start');
-    const registry = JSON.parse(fs.readFileSync(projectPath(root, 'config/sources.v1.json'), 'utf8'));
+    const fullRegistry = JSON.parse(fs.readFileSync(projectPath(root, 'config/sources.v1.json'), 'utf8'));
+    const registry = {...fullRegistry,sources:fullRegistry.sources.filter(source=>source.purpose!=='weekly-case')};
     const sourceCollector = options.collectSources || collectSources;
     const discovery = await sourceCollector(registry, { cacheDirectory: projectPath(root, '.cache/discovery'), concurrency: 5 });
     writeJsonAtomic(path.join(outputDirectory, `discovery-${runId}.json`), discovery);
     const impaired = getImpairedCoverageGroups(discovery);
     if (options.mode === 'scan') {
+      planEditorialDiscovery(discovery,registry,stateDirectory,date,{detailLimit:0});
       // 巡检的职责是记录瞬时来源健康状态，不能因单个来源网络波动制造 GitHub 失败告警。
       const result = {
         runId,
@@ -363,33 +387,45 @@ async function runDaily(options = {}) {
     phase = 'details';
     log('phase-start');
     const { getCoverageWindow } = require('./pipeline.cjs');
-    const trimmed = trimDiscoveryForWindow(discovery, getCoverageWindow(date));
-    const details = await enrichDiscoveryItems(trimmed, registry, { cacheDirectory: projectPath(root, '.cache/details'), concurrency: 5 });
-
+    const services = options.editorialServices || {};
+    const history = recoverDeliveryHistory(root);
+    const planned = planEditorialDiscovery(discovery,registry,stateDirectory,date,options);
+    const details = await (services.enrichDiscoveryItems || enrichDiscoveryItems)(planned,registry,{cacheDirectory:projectPath(root,'.cache/details'),concurrency:5});
     phase = 'candidate-routing';
     log('phase-start');
-    const sentStatePath = path.join(stateDirectory, 'sent-events.json');
-    const candidates = filterPreviouslySent(prepareModelCandidates(details, date), readJson(sentStatePath, { events: [] }));
-    if (candidates.candidateCount === 0) {
-      const error = new Error('本期没有通过质量门槛的候选内容，停止生成。');
-      error.code = 'NO_PUBLISHABLE_CONTENT';
-      throw error;
-    }
+    const sentStatePath = path.join(stateDirectory,'sent-events.json');
+    const candidates = prepareEditorialCandidates(details,date,history);
+    const independentMaterials = prepareEditorialCandidates(details,date,{events:[]}).candidates;
+    const selectionAudit = {version:2,...planned.editorialAudit,readyDetails:details.readyCount ?? details.items.filter(i=>i.detailStatus==='ready').length,candidateCount:candidates.candidateCount,rejected:candidates.rejected,historyCoverage:history.coverage};
+    writeJsonAtomic(path.join(outputDirectory,'editorial-'+runId+'.audit.json'),selectionAudit);
     if (options.validateOnly === true) {
-      const status = { runId, status: 'validation-complete', date, candidateCount: candidates.candidateCount, rejectedCount: candidates.rejectedCount, sent: false, completedAt: new Date().toISOString() };
-      recordRun(path.join(stateDirectory, 'runs.json'), status);
-      return finish(status);
+      const status = {runId,status:'validation-complete',editorialVersion:2,date,candidateCount:candidates.candidateCount,thinkingMaterialCount:independentMaterials.length,rejectedCount:candidates.rejectedCount,sent:false,completedAt:new Date().toISOString()};
+      recordRun(path.join(stateDirectory,'runs.json'),status);return finish(status);
     }
-
     phase = 'generation-and-review';
     log('phase-start');
-    const generated = await generateAndReview(candidates, {
-      ledgerPath: path.join(stateDirectory, 'cost-ledger.json'),
-      monthlyBudgetCny,
-      budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
-      usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2)
-    });
-    writeJsonAtomic(path.join(outputDirectory, `review-${runId}.json`), generated.review);
+    const readyPath = path.join(stateDirectory,'edition-ready-'+date+'.json');
+    const partialPath = path.join(stateDirectory,'edition-partial-'+date+'.json');
+    const ready = readJson(readyPath,null);
+    const reusable = ready?.version===2 && ready.date===date && ready.digest===hash(JSON.stringify(ready.generated)) && (ready.generated.briefing.candidates.length>0 || ready.generated.briefing.thinking?.reviewed===true);
+    let generated;
+    if(reusable) generated=ready.generated;
+    else {
+      const partial = readJson(partialPath,null);
+      const initialEvents = partial?.date===date && partial.digest===hash(JSON.stringify(partial.events)) ? partial.events : [];
+      const modelOptions={...options.modelOptions,now:options.now,ledgerPath:path.join(stateDirectory,'cost-ledger.json'),monthlyBudgetCny,budgetCostMultiplier:Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),usdCnyRate:Number(process.env.USD_CNY_RATE || 7.2),initialEvents,
+        onError: error=>log('model-request-error',{code:error.code || 'UNEXPECTED',message:error.message}),
+        onCheckpoint: checkpoint=>writeJsonAtomic(partialPath,{date,...checkpoint,digest:hash(JSON.stringify(checkpoint.events))})};
+      generated = await (services.generateEdition || generateEdition)(candidates,modelOptions);
+      const thought = await (services.generateThinking || generateThinking)(independentMaterials,history,{...modelOptions,newsUrls:generated.briefing.candidates.flatMap(event=>event.sources.map(source=>source.url))});
+      generated.briefing.thinking=thought.thinking;
+      generated.briefing.thinkingStatus=thought.audit;
+      generated.costs.push(...thought.costs);
+      generated.review.thinking=thought.audit;
+      if(generated.briefing.candidates.length || generated.briefing.thinking?.reviewed===true)writeJsonAtomic(readyPath,{version:2,date,generated,digest:hash(JSON.stringify(generated))});
+    }
+    generated.review.discovery=selectionAudit;
+    writeJsonAtomic(path.join(outputDirectory,'review-'+runId+'.json'),generated.review);
 
     phase = 'editorial-validation';
     log('phase-start');
@@ -403,11 +439,11 @@ async function runDaily(options = {}) {
     phase = 'artifact-finalization';
     log('phase-start');
     const finalized = await finalizeArtifacts(result, { root, outputDirectory, runId, date, review: generated.review, modelUsage, send: options.send === true });
-    if (finalized.sent) updateSentState(sentStatePath, result.events);
+    if (finalized.sent) { updateSentState(sentStatePath,result.events); recordDeliveredEdition(stateDirectory,result,finalized.delivery?.acceptedAt); }
     return finish(finalized);
   } catch (error) {
     log('run-error', { code: error?.code || 'UNEXPECTED', message: error.message });
-    const delivered = mode === 'case' && readJson(path.join(stateDirectory, 'runs.json'), { runs: [] }).runs.find(item => item.runId === runId && item.sent === true);
+    const delivered = readJson(path.join(stateDirectory, 'runs.json'), { runs: [] }).runs.find(item => item.runId === runId && item.sent === true);
     if (delivered) return finish({ ...delivered, postDeliveryWarning: error.message });
     if (error && error.code === 'MODEL_WINDOW_CLOSED') {
       const status = { runId, status: 'model-window-stopped', date, mode, phase, sent: false, completedAt: new Date().toISOString() };
@@ -456,6 +492,10 @@ async function runWeeklyCase(options) {
   const auditPath = path.join(options.outputDirectory, 'business-case-' + options.date + '.audit.json');
   const history = readCaseHistory(options.stateDirectory, now);
   const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const sector = options.validateOnly && ['technology','traditional'].includes(options.caseSector) ? options.caseSector : nextCaseSector(history);
+  const failuresPath=path.join(options.stateDirectory,'weekly-case-attempts.json');
+  const savedFailures=readJson(failuresPath,{date:options.date,failed:[]});
+  const failed=savedFailures.date===options.date?savedFailures.failed:[];
   let ready = readJson(readyPath, null);
   let sourceIds = [];
   let attempts = [];
@@ -465,16 +505,16 @@ async function runWeeklyCase(options) {
     && integrityIssues(ready.content, ready.materials).length === 0;
   if (!reusable || options.validateOnly) {
     const registry = JSON.parse(fs.readFileSync(path.join(options.root, 'config/sources.v1.json'), 'utf8'));
-    sourceIds = weeklyCaseFallbackSourceIds(registry, history, now);
+    sourceIds = weeklyCaseFallbackSourceIds(registry, history, now, sector);
     let groups = [];
     if (sourceIds.length) {
       const discovery = await (services.collectSources || collectSources)(registry, { sourceIds, concurrency: 4 });
       const details = await (services.enrichDiscoveryItems || enrichDiscoveryItems)(trimCaseDiscovery(discovery), registry, { cacheDirectory: path.join(options.root, '.cache/details'), concurrency: 4 });
       groups = selectWeeklyCaseMaterialGroups(details, history, now);
-      writeJsonAtomic(auditPath, { status: 'materials-checked', sourceIds, sourceHealth: (discovery.sources || []).map(source => ({ sourceId: source.sourceId, status: source.status, itemCount: source.itemCount, error: source.error || null })), detailCounts: { total: details.items.length, ready: details.items.filter(item => item.detailStatus === 'ready').length }, groups: groups.map(group => ({ entity: group[0].entityKey, count: group.length })), sent: false });
+      writeJsonAtomic(auditPath, { status: 'materials-checked', sector, sourceIds, sourceHealth: (discovery.sources || []).map(source => ({ sourceId: source.sourceId, status: source.status, itemCount: source.itemCount, error: source.error || null })), detailCounts: { total: details.items.length, ready: details.items.filter(item => item.detailStatus === 'ready').length }, groups: groups.map(group => ({ entity: group[0].entityKey, count: group.length })), sent: false });
     }
     if (options.validateOnly) {
-      const status = { runId: options.runId, date: options.date, mode: 'case', status: groups.length ? 'case-validation-complete' : 'case-materials-insufficient', candidateCount: groups.length, sent: false, completedAt: new Date().toISOString() };
+      const status = { runId: options.runId, date: options.date, mode: 'case', sector, status: groups.length ? 'case-validation-complete' : 'case-materials-insufficient', candidateCount: groups.length, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(options.stateDirectory, 'runs.json'), status);
       return status;
     }
@@ -484,7 +524,7 @@ async function runWeeklyCase(options) {
       throw error;
     }
     ready = null;
-    for (const materials of groups.slice(0,2)) {
+    for (const materials of groups.filter(group=>!failed.some(f=>f.materialDigest===hash(group))).slice(0,2)) {
       try {
         const generated = await (services.generateBusinessCase || generateBusinessCase)(materials, { now: options.now, allowWeeklyCase: true, ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'), monthlyBudgetCny: options.monthlyBudgetCny ?? monthlyBudgetForRun(now), budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2), usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2) });
         const content = generated.content;
@@ -493,18 +533,20 @@ async function runWeeklyCase(options) {
           const error = new Error('案例未满足投递前完整性或审校要求。'); error.code = 'CASE_REVIEW_BLOCKED'; error.context = { review: { passed: false, issues } }; throw error;
         }
         attempts.push({ entity: materials[0].entityKey, status: 'review-passed', reviews: generated.attempts || [] });
-        ready = { version: 1, date: options.date, content, materials, review: generated.review, costs: generated.costs || [], attempts, digest: hash({ content, materials }) };
+        ready = { version: 1, date: options.date, sector, content, materials, review: generated.review, costs: generated.costs || [], attempts, digest: hash({ content, materials }) };
         writeJsonAtomic(readyPath, ready);
         break;
       } catch (error) {
         if (!['CASE_REVIEW_BLOCKED','MODEL_OUTPUT_INVALID'].includes(error.code)) throw error;
+        failed.push({entity:materials[0].entityKey,materialDigest:hash(materials),code:error.code});
+        writeJsonAtomic(failuresPath,{date:options.date,failed});
         attempts.push({ entity: materials[0].entityKey, status: error.code, review: error.context?.review || null, reviews: error.context?.attempts || [] });
         writeJsonAtomic(auditPath, { status: 'trying-alternative-topic', sourceIds, attempts, sent: false });
       }
     }
     if (!ready) {
-      const error = new Error('两个独立案例选题经受限修复后仍未通过审校。');
-      error.code = 'CASE_REVIEW_BLOCKED'; error.context = { sourceIds, attempts };
+      const error = new Error('本轮未取得通过审校的案例；后续备用任务会跳过本周已失败的相同材料。');
+      error.code = 'CASE_REVIEW_BLOCKED'; error.context = { sector, sourceIds, attempts, previouslyFailed:failed.map(f=>f.entity) };
       writeJsonAtomic(auditPath, { status: 'review-blocked', ...error.context, sent: false });
       throw error;
     }
@@ -527,9 +569,9 @@ async function runWeeklyCase(options) {
   }
   const sent = Boolean(delivery);
   // 先登记SMTP成功，再写选题历史；后续补跑按该周日期去重。
-  const status = { runId: options.runId, status: 'complete', kind: 'business-case', date: options.date, sent, delivery, reusedReviewedDraft: Boolean(reusable), completedAt: new Date().toISOString() };
+  const status = { runId: options.runId, status: 'complete', kind: 'business-case', sector:ready.sector || sector, date: options.date, sent, delivery, reusedReviewedDraft: Boolean(reusable), completedAt: new Date().toISOString() };
   recordRun(path.join(options.stateDirectory, 'runs.json'), status);
-  if (sent) updateCaseHistory(options.stateDirectory, content, materials, now);
+  if (sent) updateCaseHistory(options.stateDirectory, content, materials, now, ready.sector || sector);
   writeJsonAtomic(auditPath, { status: sent ? 'sent' : 'validated-not-sent', review: ready.review, attempts: ready.attempts, reusedReviewedDraft: Boolean(reusable), sourceCount: content.sources.length, modelUsage: summarizeModelUsage(ready.costs), sent, smtpStatus: delivery?.smtpStatus || null });
   return status;
 }
@@ -555,6 +597,8 @@ async function finalizeArtifacts(result, options) {
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.txt`), text, 'utf8');
   fs.writeFileSync(path.join(options.outputDirectory, `${base}.eml`), mime, 'utf8');
   writeJsonAtomic(path.join(options.outputDirectory, `${base}.selected.json`), {
+    editorialVersion:result.editorialVersion || 1,
+    thinkingStatus:result.thinkingStatus || null,
     briefingDate: result.briefingDate,
     coverageStart: result.window.start.toISOString(),
     coverageEnd: result.window.end.toISOString(),
@@ -571,9 +615,9 @@ async function finalizeArtifacts(result, options) {
     sent = true;
     delivery = { traceId, smtpStatus: submission.status, attempts: submission.attempts, submission: submission.submission, acceptedAt: new Date().toISOString() };
   }
-  const status = { runId: options.runId, status: 'complete', date: options.date, eventCount: result.events.length, sent, delivery, completedAt: new Date().toISOString() };
+  const status = { runId: options.runId, status: 'complete', editorialVersion:result.editorialVersion || 1, date: options.date, eventCount: result.events.length, sent, delivery, completedAt: new Date().toISOString() };
   recordRun(path.join(options.root, 'state/runs.json'), status);
   return status;
 }
 
-module.exports = { assertPublishableEditorialResult, beijingDate, caseEntityKey, finalizeArtifacts, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, projectPath, purgeDetailCache, readCaseHistory, resolveFixturePath, runDaily, runWeeklyCase, selectWeeklyCaseMaterialGroups, selectWeeklyCaseMaterials, selectedEventsFromOutput, summarizeModelUsage, trimCaseDiscovery, trimDiscoveryForWindow, updateCaseHistory, weeklyCaseFallbackSourceIds, weeklyCaseSeeds, writeFailure };
+module.exports = { nextCaseSector, assertPublishableEditorialResult, beijingDate, caseEntityKey, finalizeArtifacts, getImpairedCoverageGroups, hasSentRunForDate, monthlyBudgetForRun, projectPath, purgeDetailCache, readCaseHistory, resolveFixturePath, runDaily, runWeeklyCase, selectWeeklyCaseMaterialGroups, selectWeeklyCaseMaterials, selectedEventsFromOutput, summarizeModelUsage, trimCaseDiscovery, trimDiscoveryForWindow, updateCaseHistory, weeklyCaseFallbackSourceIds, weeklyCaseSeeds, writeFailure };

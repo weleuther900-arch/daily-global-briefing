@@ -25,6 +25,7 @@ function withinEditorialWindow(item, window) {
 }
 
 function eventTimeLabel(event) {
+  if (event.contentKind === 'background') return '背景补充 · 原始公开时间';
   if (!isTrendingObservation(event)) return '公开时间';
   if (event.observation.kind === 'github-momentum') return 'GitHub关注度观察时间（非项目发布日期）';
   return `GitHub${event.observation.period === 'weekly' ? '周' : '日'}榜观察时间（非项目发布日期）`;

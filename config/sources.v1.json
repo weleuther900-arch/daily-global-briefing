@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updatedAt": "2026-09-23",
+  "updatedAt": "2026-09-28",
   "coverageGroups": [
     {
       "id": "international-ai-official",
@@ -12,13 +12,15 @@
       "id": "china-digital-policy",
       "name": "中国数字经济与宏观政策",
       "sourceIds": ["cac-home", "pbc-news", "nbs-data", "nbs-release-calendar", "ndrc-news", "mofcom-news", "miit-rss", "mof-news", "safe-news"],
-      "minimumAvailable": 4
+      "minimumAvailable": 4,
+      "requiredForDaily": false
     },
     {
       "id": "global-digital-policy",
       "name": "国际数字政策与监管",
       "sourceIds": ["federal-register-tech", "eu-digital-news", "white-house-news", "us-treasury-news", "us-commerce-news"],
-      "minimumAvailable": 2
+      "minimumAvailable": 2,
+      "requiredForDaily": false
     },
     {
       "id": "developer-ecosystem",
@@ -30,25 +32,29 @@
       "id": "china-macro-release",
       "name": "中国宏观数据发布发现",
       "sourceIds": ["nbs-data", "nbs-release-calendar"],
-      "minimumAvailable": 1
+      "minimumAvailable": 1,
+      "requiredForDaily": false
     },
     {
       "id": "us-macro-release",
       "name": "美国宏观数据与政策发布发现",
       "sourceIds": ["bls-latest", "bea-releases", "fed-press-all", "fed-industrial-production", "fred-employment-release", "fred-cpi-release"],
-      "minimumAvailable": 3
+      "minimumAvailable": 3,
+      "requiredForDaily": false
     },
     {
       "id": "global-macro-institutions",
       "name": "国际组织与主要央行",
       "sourceIds": ["imf-news", "wto-news", "ecb-press", "world-bank-news", "iea-news"],
-      "minimumAvailable": 2
+      "minimumAvailable": 2,
+      "requiredForDaily": false
     },
     {
       "id": "authoritative-media-watch",
       "name": "国际权威媒体综合观察",
       "sourceIds": ["reuters-world", "reuters-business", "bbc-world", "bbc-business", "bbc-technology", "ap-world", "ap-business", "ap-technology"],
-      "minimumAvailable": 3
+      "minimumAvailable": 3,
+      "requiredForDaily": false
     },
     {
       "id": "technology-earnings",
@@ -899,6 +905,153 @@
           "smallWeeklyStars": 100,
           "weeklyRate": 0.25
         }
+      }
+    },
+    {
+      "id": "typesafe-blog",
+      "name": "TypeSafe官方博客",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "sitemap",
+        "url": "https://typesafe.ai/sitemap.xml",
+        "allowedHosts": ["typesafe.ai"],
+        "linkPattern": "^https://typesafe\\.ai/blog/[^/?#]+",
+        "maxItems": 30,
+        "visibleDatePattern": "<p\\b[^>]*>\\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},\\s+20\\d{2})\\s*</p>"
+      }
+    },
+    {
+      "id": "vercel-blog",
+      "name": "Vercel官方博客",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://vercel.com/blog",
+        "allowedHosts": ["vercel.com"],
+        "linkPattern": "^https://vercel\\.com/blog/[^/?#]+",
+        "maxItems": 30,
+        "excludeLinkPattern": "^https://vercel\\.com/blog/(?:engineering|community|company-news|customers|security|category|tags)(?:[/?#]|$)"
+      }
+    },
+    {
+      "id": "meta-newsroom",
+      "name": "Meta新闻室",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "html",
+        "url": "https://about.fb.com/news/",
+        "allowedHosts": ["about.fb.com"],
+        "linkPattern": "^https://about\\.fb\\.com/news/20[0-9]{2}/[0-9]{2}/[^/?#]+",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "starbucks-news",
+      "name": "Starbucks官方新闻",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "purpose": "weekly-case",
+      "discovery": {
+        "type": "html",
+        "url": "https://about.starbucks.com/press-center/",
+        "allowedHosts": ["about.starbucks.com"],
+        "linkPattern": "^https://about\\.starbucks\\.com/(?:press|stories)/20[0-9]{2}/[^/?#]+",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "unilever-news",
+      "name": "Unilever官方新闻",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "frequency": "three-scans",
+      "purpose": "weekly-case",
+      "discovery": {
+        "type": "html",
+        "url": "https://www.unilever.com/news/press-and-media/press-releases/",
+        "allowedHosts": ["www.unilever.com"],
+        "linkPattern": "^https://www\\.unilever\\.com/news/(?:press-and-media/press-releases|news-search)/20[0-9]{2}/[^/?#]+",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "starbucks-investor",
+      "name": "Starbucks投资者关系",
+      "region": "国际",
+      "topics": ["digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "purpose": "weekly-case",
+      "frequency": "weekly",
+      "discovery": {
+        "type": "rss",
+        "url": "https://investor.starbucks.com/rss/pressrelease.aspx",
+        "allowedHosts": ["investor.starbucks.com", "about.starbucks.com"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "coca-cola-investor",
+      "name": "Coca-Cola投资者关系",
+      "region": "国际",
+      "topics": ["digital-economy"],
+      "tier": "S",
+      "kind": "official",
+      "purpose": "weekly-case",
+      "frequency": "weekly",
+      "discovery": {
+        "type": "rss",
+        "url": "https://investors.coca-colacompany.com/news-events/press-releases/rss",
+        "allowedHosts": ["investors.coca-colacompany.com"],
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "techradar-ai",
+      "name": "TechRadar一手体验",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "A",
+      "kind": "media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://www.techradar.com/rss",
+        "allowedHosts": ["www.techradar.com"],
+        "includeTitlePattern": "\\b(?:AI|agent|model|software|cloud|subscription)s?\\b",
+        "maxItems": 30
+      }
+    },
+    {
+      "id": "techcrunch-ai",
+      "name": "TechCrunch AI报道",
+      "region": "国际",
+      "topics": ["ai", "digital-economy"],
+      "tier": "A",
+      "kind": "media",
+      "frequency": "three-scans",
+      "discovery": {
+        "type": "rss",
+        "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "allowedHosts": ["techcrunch.com"],
+        "maxItems": 30
       }
     }
   ]

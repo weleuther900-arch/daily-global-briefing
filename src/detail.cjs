@@ -25,6 +25,10 @@ function decodeJsonLdString(value) {
 }
 
 function extractTitle(html) {
+  for(const meta of String(html).matchAll(/<meta\b[^>]*>/gi)) {
+    const attributes=Object.fromEntries([...meta[0].matchAll(/([\w:-]+)\s*=\s*(["'])([\s\S]*?)\2/g)].map(m=>[m[1].toLowerCase(),m[3]]));
+    if(attributes.property==='og:title' && attributes.content)return stripMarkup(attributes.content).replace(/\s*[|｜–—]\s*[^|｜–—]{2,40}$/, '').trim();
+  }
   return firstMatch(html, [
     /<meta\b[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["'][^>]*>/i,
     /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["'][^>]*>/i,
@@ -39,8 +43,7 @@ function extractPublishedAt(html) {
     /<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']article:published_time["'][^>]*>/i,
     /<meta\b[^>]*name=["']date["'][^>]*content=["']([^"']+)["'][^>]*>/i,
     /<time\b[^>]*datetime=["']([^"']+)["'][^>]*>/i,
-    /["']datePublished["']\s*:\s*["']([^"']+)["']/i,
-    /["']dateModified["']\s*:\s*["']([^"']+)["']/i
+    /["']datePublished["']\s*:\s*["']([^"']+)["']/i
   ]);
   if (!value) return null;
   const date = new Date(decodeJsonLdString(value));
@@ -167,7 +170,12 @@ async function downloadDetail(item, source, options = {}) {
 function extractDetail(item, source, html, finalUrl = item.url) {
   const extractedTitle = extractTitle(html);
   const title = /^(document|document 1|sec filing)$/i.test(extractedTitle) ? item.title : extractedTitle || item.title;
-  const publishedAt = extractPublishedAt(html) || item.publishedAt || null;
+  let publishedAt = extractPublishedAt(html) || item.publishedAt || null;
+  let originalDatePrecision=item.originalDatePrecision || null;
+  if(!publishedAt && source.discovery.visibleDatePattern) {
+    const dates=[...new Set([...String(html).matchAll(new RegExp(source.discovery.visibleDatePattern,'gi'))].map(m=>stripMarkup(m[1])))];
+    if(dates.length===1){const date=new Date(dates[0]+' 00:00:00 UTC');if(Number.isFinite(date.getTime())){publishedAt=date.toISOString();originalDatePrecision='day';}}
+  }
   const text = extractReadableText(html);
   const canonicalUrl = extractCanonicalUrl(html, finalUrl);
   const access = detectAccessState(html, text);
@@ -176,6 +184,7 @@ function extractDetail(item, source, html, finalUrl = item.url) {
     title,
     url: canonicalUrl,
     publishedAt,
+    originalDatePrecision,
     language: extractLanguage(html),
     access,
     text,

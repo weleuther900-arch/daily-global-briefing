@@ -96,3 +96,14 @@ test('SMTP失败后保留已审稿件，备用运行直接复用而不重新调�
   const result=await runDaily({root,mode:'case',now:new Date('2026-09-20T14:30:00Z'),send:true,caseServices:services});
   assert.equal(result.sent,true); assert.equal(result.reusedReviewedDraft,true); assert.equal(generations,1);
 });
+
+
+test('备用任务跳过本周已失败的相同材料，避免重复花费模型调用',async()=>{
+  const {root,services}=fixture();let generations=0;
+  services.generateBusinessCase=async()=>{generations++;const e=Error('事实未通过');e.code='CASE_REVIEW_BLOCKED';throw e;};
+  const first=await runDaily({root,mode:'case',now,send:false,caseServices:services});
+  assert.equal(first.status,'case-review-stopped');assert.equal(generations,2);
+  const second=await runDaily({root,mode:'case',now:new Date('2026-09-20T14:30:00Z'),send:false,caseServices:services});
+  assert.equal(second.status,'case-review-stopped');assert.equal(generations,2);
+  assert.ok(!fs.existsSync(path.join(root,'state/business-case-history.json')));
+});

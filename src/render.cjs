@@ -112,6 +112,8 @@ function renderNarrativeSection(eventNumber, subNumber, title, text, className) 
 }
 
 function renderArticle(event, eventNumber) {
+  const context = `${event.contentKind === 'background' ? `<p class="meta">背景补充：${escapeHtml(event.background?.reason || '')}</p>` : ''}${event.availability ? `<p class="meta">开放状态：${escapeHtml(event.availability)}；证据：${escapeHtml(event.evidenceBasis || '')}</p>` : ''}`;
+  if (event.format === 'brief') return `<article class="article"><h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)} <span class="tag">简讯</span></h2><div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml((event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt))))}</div>${context}<p>${escapeHtml(event.conclusion)}</p><p>${escapeHtml(event.impact)}</p><p class="meta">${escapeHtml(event.judgmentBoundary)}</p>${renderSources(event.sources)}</article>`;
   let subNumber = 1;
   const subsections = [];
 
@@ -154,8 +156,8 @@ function renderArticle(event, eventNumber) {
   return `
     <article class="article">
       <h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)}</h2>
-      <div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml(formatBeijingDateTime(new Date(event.publishedAt)))}${evidence}</div>
-      ${renderTags(event)}
+      <div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml((event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt))))}${evidence}</div>
+      ${renderTags(event)}${context}${event.format === 'feature' ? '<span class="tag">重点解读</span>' : ''}
       <div class="lead-label">核心判断</div>
       <p class="lead">${escapeHtml(event.conclusion)}</p>
       ${subsections.join('')}
@@ -164,6 +166,7 @@ function renderArticle(event, eventNumber) {
 
 function renderThinking(thinking) {
   if (!thinking) return '';
+  if (thinking.type) return `<aside class="thinking"><div class="thinking-label">三分钟商业思考 · ${thinking.type === 'explanation' ? '机制讲解' : '案例练习'}</div><div class="thinking-title">${escapeHtml(thinking.title)}</div>${(thinking.paragraphs || []).map(p=>`<p>${escapeHtml(p)}</p>`).join('')}<p><strong>想一想：</strong>${escapeHtml(thinking.question)}</p>${(thinking.variables || []).length ? `<p>观察条件：${escapeHtml(thinking.variables.join('；'))}</p>` : ''}<p class="meta">${escapeHtml(thinking.limits)}</p>${renderSources(thinking.sources || [])}</aside>`;
   const scenario = thinking.scenario ? `<p><strong>你的角色：</strong>${escapeHtml(thinking.scenario)}</p>` : '';
   const question = thinking.decisionQuestion ? `<p><strong>决策题：</strong>${escapeHtml(thinking.decisionQuestion)}</p>` : '';
   const options = Array.isArray(thinking.options) && thinking.options.length > 0
@@ -184,6 +187,7 @@ function renderHtml(result, config = PROJECT_CONFIG) {
   const coverageByCategory = new Map((coverage.categories || []).map((category) => [category.id, category]));
   const sections = config.categories.map((category) => {
     const events = result.events.filter((event) => event.category === category.id);
+    if (result.editorialVersion === 2 && !events.length) return '';
     const categoryCoverage = coverageByCategory.get(category.id) || { ...category, status: 'no-qualified-candidate', candidateCount: 0 };
     return `
       <section class="section">
@@ -304,13 +308,14 @@ function renderHtml(result, config = PROJECT_CONFIG) {
     <main class="paper">
       <header class="masthead">
         <div class="brand">全球晨报｜${escapeHtml(formatBriefingDate(result.briefingDate))}</div>
-        <div class="edition">覆盖时间：${escapeHtml(result.window.label)}<br>${escapeHtml(config.timezoneLabel)}</div>
-        <div class="count">本期 ${result.events.length} 条新闻事件</div>
+        <div class="edition">${result.editorialVersion === 2 ? '新动态窗口' : '覆盖时间'}：${escapeHtml(result.window.label)}<br>${escapeHtml(config.timezoneLabel)}</div>
+        <div class="count">本期 ${result.events.length} 条${result.editorialVersion === 2 ? '内容' : '新闻事件'}</div>
       </header>
       <div class="content">
         ${emptyState}
         ${sections}
-        ${renderThinking(result.thinking || coverage.fallbackThinking)}
+        ${renderThinking(result.thinking || (result.editorialVersion === 2 ? null : coverage.fallbackThinking))}
+        ${result.editorialVersion === 2 && !result.thinking ? '<p class="meta">本期商业思考暂无通过核查的内容。</p>' : ''}
       </div>
     </main>
   </div>
@@ -323,9 +328,9 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
   const coverageByCategory = new Map((coverage.categories || []).map((category) => [category.id, category]));
   const lines = [
     `全球晨报｜${formatBriefingDate(result.briefingDate)}`,
-    `覆盖时间：${result.window.label}`,
+    `${result.editorialVersion === 2 ? '新动态窗口' : '覆盖时间'}：${result.window.label}`,
     config.timezoneLabel,
-    `本期 ${result.events.length} 条新闻事件`,
+    `本期 ${result.events.length} 条${result.editorialVersion === 2 ? '内容' : '新闻事件'}`,
     ''
   ];
 
@@ -333,6 +338,7 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
 
   for (const category of config.categories) {
     const events = result.events.filter((event) => event.category === category.id);
+    if (result.editorialVersion === 2 && !events.length) continue;
     const categoryCoverage = coverageByCategory.get(category.id) || { ...category, status: 'no-qualified-candidate', candidateCount: 0 };
     lines.push(`${category.number}、${category.name}`, '');
     if (events.length === 0) {
@@ -340,9 +346,17 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
       continue;
     }
     events.forEach((event, eventIndex) => {
+      if (event.format === 'brief') {
+        lines.push(`${eventIndex + 1}. ${event.title}【简讯】`,`${eventTimeLabel(event)}：${(event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt)))}`);
+        if (event.background?.reason) lines.push(`补充价值：${event.background.reason}`);
+        if (event.availability) lines.push(`开放状态：${event.availability}；证据：${event.evidenceBasis}`);
+        lines.push(event.conclusion,event.impact,event.judgmentBoundary,...event.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]),'');return;
+      }
       let subNumber = 1;
       lines.push(`${eventIndex + 1}. ${event.title}`);
-      lines.push(`${eventTimeLabel(event)}：${formatBeijingDateTime(new Date(event.publishedAt))}`);
+      lines.push(`${eventTimeLabel(event)}：${(event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt)))}`);
+      if (event.background?.reason) lines.push(`补充价值：${event.background.reason}`);
+      if (event.availability) lines.push(`开放状态：${event.availability}；证据：${event.evidenceBasis}`);
       if (event.tags && event.tags.length > 0) lines.push(`标签：${event.tags.join('、')}`);
       lines.push('', `核心判断：${event.conclusion}`, '');
       for (const [title, value] of [['大白话讲解', event.plainLanguage], ['相关影响', event.impact], ['判断边界', event.judgmentBoundary]]) {
@@ -380,7 +394,12 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
     });
   }
 
-  const thinking = result.thinking || coverage.fallbackThinking;
+  const thinking = result.thinking || (result.editorialVersion === 2 ? null : coverage.fallbackThinking);
+  if (thinking?.type) {
+    lines.push(`三分钟商业思考 · ${thinking.type === 'explanation' ? '机制讲解' : '案例练习'}`,thinking.title,...thinking.paragraphs,`想一想：${thinking.question}`,`观察条件：${thinking.variables.join('；')}`,thinking.limits,...thinking.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]));
+    return lines.join('\r\n').trim()+'\r\n';
+  }
+  if (result.editorialVersion === 2 && !thinking) lines.push('本期商业思考暂无通过核查的内容。');
   if (thinking) {
     lines.push('三分钟商业思考', thinking.title);
     if (thinking.scenario) lines.push(`你的角色：${thinking.scenario}`);

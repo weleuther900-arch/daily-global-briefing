@@ -18,7 +18,7 @@ const KEYWORDS = Object.freeze({
   'digital-economy': [
     '数字经济', '云计算', '数据中心', '半导体', '芯片', '电商', '平台经济', '支付', '金融科技',
     '网络安全', '软件供应链', '卫星互联网', '数字贸易', '数字基础设施', 'cloud', 'semiconductor',
-    'cybersecurity', 'fintech', 'e-commerce', 'data center', 'digital market', 'digital services'
+    'software', 'subscription', 'revenue', 'earnings', 'operating margin', 'monetization', '财报', '订阅', '营收', '商业模式', '客户留存', 'cybersecurity', 'fintech', 'e-commerce', 'data center', 'digital market', 'digital services'
   ],
   'china-economy-policy': [
     '中国', '国务院', '国家统计局', '人民银行', '央行', '国家网信办', '监管', '政策', '关税', '进出口',
