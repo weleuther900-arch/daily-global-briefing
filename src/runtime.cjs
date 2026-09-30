@@ -347,7 +347,7 @@ async function runDaily(options = {}) {
     if (mode === 'case') {
       phase = 'weekly-case';
       log('phase-start');
-      return finish(await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, now, monthlyBudgetCny, send: options.send === true, validateOnly: options.validateOnly === true, allowCaseRecovery: options.allowCaseRecovery === true, caseSector: options.validateOnly ? options.caseSector : undefined, services: options.caseServices }));
+      return finish(await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, now, monthlyBudgetCny, send: options.send === true, validateOnly: options.validateOnly === true, allowCaseRecovery: options.allowCaseRecovery === true, caseSector: (options.validateOnly || options.allowCaseRecovery) ? options.caseSector : undefined, services: options.caseServices }));
     }
     if (options.fixturePath) {
       phase = 'fixture-build';
@@ -495,7 +495,7 @@ async function runWeeklyCase(options) {
   const auditPath = path.join(options.outputDirectory, 'business-case-' + options.date + '.audit.json');
   const history = readCaseHistory(options.stateDirectory, now);
   const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  const sector = options.validateOnly && ['technology','traditional'].includes(options.caseSector) ? options.caseSector : nextCaseSector(history);
+  const sector = (options.validateOnly || options.allowCaseRecovery) && ['technology','traditional'].includes(options.caseSector) ? options.caseSector : nextCaseSector(history);
   const failuresPath=path.join(options.stateDirectory,'weekly-case-attempts.json');
   const savedFailures=readJson(failuresPath,{date:options.date,failed:[]});
   const failed=savedFailures.date===options.date?savedFailures.failed:[];

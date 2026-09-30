@@ -119,6 +119,15 @@ test('an empty edition is not cached as ready, allowing the next authorized run 
  await runDaily(options);await runDaily(options);assert.equal(count,2);assert.ok(!fs.existsSync(path.join(root,'state/edition-ready-'+date+'.json')));
 });
 
+test('explicit recovery authorization reaches every editorial model call',async()=>{
+ let calls=0;
+ await generateEdition({briefingDate:date,candidates:[candidate()]},{allowAuthorizedRecovery:true,callStructured:async options=>{
+   calls++;assert.equal(options.allowAuthorizedRecovery,true);
+   return caller()(options);
+ }});
+ assert.ok(calls>=3);
+});
+
 test('完整正式链路从模型模拟到渲染，重复未发送运行复用已审稿且不推进历史',async()=>{
  const root=temp();fs.mkdirSync(path.join(root,'config'));fs.writeFileSync(path.join(root,'config/sources.v1.json'),JSON.stringify({sources:[{id:'official'}]}));
  let generations=0;const options={root,date,now,send:false,collectSources:async()=>({sources:[],coverageGroups:[]}),editorialServices:{enrichDiscoveryItems:async()=>({items:[]}),generateEdition:async()=>{generations++;return edition([candidate()]);},generateThinking:async()=>({thinking:null,costs:[],audit:{status:'no-independent-material'}})}};

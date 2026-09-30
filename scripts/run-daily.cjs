@@ -17,7 +17,7 @@ function parse(argv) {
     else throw new Error(`未知参数：${key}`);
   }
   if (!['scan', 'final', 'case', 'recovery'].includes(options.mode)) throw new Error('--mode只能是scan、final、case或recovery。');
-  if(options.caseSector && (!options.validateOnly || !['technology','traditional'].includes(options.caseSector)))throw Error('--case-sector仅用于验证technology或traditional材料。');
+  if(options.caseSector && (!(options.validateOnly || options.allowCaseRecovery) || !['technology','traditional'].includes(options.caseSector)))throw Error('--case-sector仅用于验证或人工恢复technology/traditional案例。');
   if(options.allowCaseRecovery && (options.mode!=='case' || !options.date || options.validateOnly))throw Error('--allow-case-recovery仅允许带明确日期的正式case补发。');
   if(options.allowDailyRecovery && (!['final','recovery'].includes(options.mode) || !options.date || options.validateOnly))throw Error('--allow-daily-recovery仅允许带明确日期的正式日报补发。');
   return options;
