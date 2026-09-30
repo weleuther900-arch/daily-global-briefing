@@ -18,6 +18,7 @@ async function generateReviewedCase(materials, options, contract) {
   const call = options.callStructured || callStructured;
   const common = {
     fetchImpl: options.fetchImpl, now: options.now, allowWeeklyCase: options.allowWeeklyCase === true,
+    allowAuthorizedRecovery: options.allowAuthorizedRecovery === true,
     ledgerPath: options.ledgerPath, monthlyBudgetCny: options.monthlyBudgetCny ?? 10,
     budgetCostMultiplier: options.budgetCostMultiplier,
     dailyTokenBudget: options.dailyTokenBudget ?? (process.env.DAILY_AI_TOKEN_BUDGET ? Number(process.env.DAILY_AI_TOKEN_BUDGET) : undefined),

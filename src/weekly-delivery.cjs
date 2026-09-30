@@ -13,4 +13,10 @@ function weeklyDeliveryReceipt(state, now = new Date()) {
   return { date, accepted: Boolean(delivered), runId: delivered?.runId || null };
 }
 
-module.exports = { latestSunday, weeklyDeliveryReceipt };
+function dailyDeliveryReceipt(state, date) {
+  const delivered = (state.runs || []).find(run => run.date === date && run.kind !== 'business-case'
+    && run.sent === true && run.delivery?.smtpStatus === 250);
+  return { date, accepted: Boolean(delivered), runId: delivered?.runId || null };
+}
+
+module.exports = { dailyDeliveryReceipt, latestSunday, weeklyDeliveryReceipt };

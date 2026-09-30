@@ -45,7 +45,9 @@ function modelWindowError(now = new Date()) {
 }
 
 function assertModelInvocationAllowed(now = new Date(), options = {}) {
-  if (isModelInvocationAllowed(now) || (options.allowWeeklyCase === true && isWeeklyCaseInvocationAllowed(now))) return;
+  if (isModelInvocationAllowed(now)
+    || (options.allowWeeklyCase === true && isWeeklyCaseInvocationAllowed(now))
+    || options.allowAuthorizedRecovery === true) return;
   throw modelWindowError(now);
 }
 

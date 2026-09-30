@@ -11,11 +11,13 @@ function parse(argv) {
     else if (key === '--case-sector') options.caseSector = argv[++index];
     else if (key === '--send') options.send = true;
     else if (key === '--validate-only') options.validateOnly = true;
+    else if (key === '--allow-case-recovery') options.allowCaseRecovery = true;
     else if (key === '--require-morning-readiness') options.requireMorningReadiness = true;
     else throw new Error(`未知参数：${key}`);
   }
   if (!['scan', 'final', 'case', 'recovery'].includes(options.mode)) throw new Error('--mode只能是scan、final、case或recovery。');
   if(options.caseSector && (!options.validateOnly || !['technology','traditional'].includes(options.caseSector)))throw Error('--case-sector仅用于验证technology或traditional材料。');
+  if(options.allowCaseRecovery && (options.mode!=='case' || !options.date || options.validateOnly))throw Error('--allow-case-recovery仅允许带明确日期的正式case补发。');
   return options;
 }
 

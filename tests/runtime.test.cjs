@@ -63,6 +63,7 @@ test('周日商业案例允许固定目标之后的受限补跑窗口', () => {
   assert.equal(isWeeklyCaseInvocationAllowed(sundayLate), true);
   assert.doesNotThrow(() => assertModelInvocationAllowed(sundayTwenty, { allowWeeklyCase: true }));
   assert.throws(() => assertModelInvocationAllowed(sundayTwenty));
+  assert.doesNotThrow(() => assertModelInvocationAllowed(new Date('2026-09-30T03:00:00Z'), { allowAuthorizedRecovery: true }));
 });
 
 test('云端提前触发只在北京时间07:00至08:30生成正式晨报', () => {

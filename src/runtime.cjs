@@ -329,7 +329,7 @@ async function runDaily(options = {}) {
     }
 
     // 定时任务或人工运行即使在窗口外启动，也必须在任何模型请求前正常停止。
-    const modelAllowed = mode === 'case' ? isWeeklyCaseInvocationAllowed(now) : isModelInvocationAllowed(now);
+    const modelAllowed = mode === 'case' ? (options.allowCaseRecovery === true || isWeeklyCaseInvocationAllowed(now)) : isModelInvocationAllowed(now);
     if (mode !== 'scan' && !options.fixturePath && options.validateOnly !== true && !modelAllowed) {
       const status = { runId, status: 'model-window-stopped', date, mode, sent: false, completedAt: new Date().toISOString() };
       recordRun(path.join(stateDirectory, 'runs.json'), status);
@@ -345,7 +345,7 @@ async function runDaily(options = {}) {
     if (mode === 'case') {
       phase = 'weekly-case';
       log('phase-start');
-      return finish(await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, now, monthlyBudgetCny, send: options.send === true, validateOnly: options.validateOnly === true, caseSector: options.validateOnly ? options.caseSector : undefined, services: options.caseServices }));
+      return finish(await runWeeklyCase({ root, outputDirectory, stateDirectory, date, runId, now, monthlyBudgetCny, send: options.send === true, validateOnly: options.validateOnly === true, allowCaseRecovery: options.allowCaseRecovery === true, caseSector: options.validateOnly ? options.caseSector : undefined, services: options.caseServices }));
     }
     if (options.fixturePath) {
       phase = 'fixture-build';
@@ -413,7 +413,8 @@ async function runDaily(options = {}) {
     else {
       const partial = readJson(partialPath,null);
       const initialEvents = partial?.date===date && partial.digest===hash(JSON.stringify(partial.events)) ? partial.events : [];
-      const modelOptions={...options.modelOptions,now:options.now,ledgerPath:path.join(stateDirectory,'cost-ledger.json'),monthlyBudgetCny,budgetCostMultiplier:Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),usdCnyRate:Number(process.env.USD_CNY_RATE || 7.2),initialEvents,
+      const modelOptions={...options.modelOptions,now:options.now,ledgerPath:path.join(stateDirectory,'cost-ledger.json'),monthlyBudgetCny,budgetCostMultiplier:Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),usdCnyRate:Number(process.env.USD_CNY_RATE || 7.2),
+        screeningLimit:Number(process.env.EDITORIAL_SCREENING_LIMIT || 80),generationLimit:Number(process.env.EDITORIAL_GENERATION_LIMIT || 18),initialEvents,
         onError: error=>log('model-request-error',{code:error.code || 'UNEXPECTED',message:error.message}),
         onCheckpoint: checkpoint=>writeJsonAtomic(partialPath,{date,...checkpoint,digest:hash(JSON.stringify(checkpoint.events))})};
       generated = await (services.generateEdition || generateEdition)(candidates,modelOptions);
@@ -526,7 +527,7 @@ async function runWeeklyCase(options) {
     ready = null;
     for (const materials of groups.filter(group=>!failed.some(f=>f.materialDigest===hash(group))).slice(0,2)) {
       try {
-        const generated = await (services.generateBusinessCase || generateBusinessCase)(materials, { now: options.now, allowWeeklyCase: true, ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'), monthlyBudgetCny: options.monthlyBudgetCny ?? monthlyBudgetForRun(now), budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2), usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2) });
+        const generated = await (services.generateBusinessCase || generateBusinessCase)(materials, { now: options.now, allowWeeklyCase: true, allowAuthorizedRecovery: options.allowCaseRecovery === true, ledgerPath: path.join(options.stateDirectory, 'cost-ledger.json'), monthlyBudgetCny: options.monthlyBudgetCny ?? monthlyBudgetForRun(now), budgetCostMultiplier: Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2), usdCnyRate: Number(process.env.USD_CNY_RATE || 7.2) });
         const content = generated.content;
         const issues = integrityIssues(content, materials);
         if (!generated.review?.passed || issues.length || (generated.review.issues || []).some(issue => issue.severity === 'blocking')) {

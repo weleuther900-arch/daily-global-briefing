@@ -107,3 +107,9 @@ test('备用任务跳过本周已失败的相同材料，避免重复花费模�
   assert.equal(second.status,'case-review-stopped');assert.equal(generations,2);
   assert.ok(!fs.existsSync(path.join(root,'state/business-case-history.json')));
 });
+
+test('人工补发明确周日日期时可在常规窗口外运行，且仍走审校链路',async()=>{
+  const {root,services}=fixture();
+  const result=await runDaily({root,mode:'case',date:'2026-09-27',now:new Date('2026-09-30T03:00:00Z'),allowCaseRecovery:true,send:false,caseServices:services});
+  assert.equal(result.status,'complete');assert.equal(result.date,'2026-09-27');assert.equal(result.sent,false);
+});
