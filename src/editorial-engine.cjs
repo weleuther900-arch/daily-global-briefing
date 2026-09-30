@@ -33,6 +33,15 @@ function screeningIssues(candidate,decision) {
   const quote=normalize(decision.evidenceQuote);
   if(!evidence || quote.length<12 || !normalize(evidence.excerpt).includes(quote))issues.push('收录依据不能在指定摘录中精确核验');
   if(decision.topic==='product' && !['attention','usage'].includes(decision.admission))issues.push('产品缺少关注或使用反馈');
+  if(decision.topic==='product' && decision.admission==='attention') {
+    const attentionEvidence = candidate.observation || (evidence && evidence.isPrimary !== true)
+      || /\b(?:users?|customers?|developers?|downloads?|sign-?ups?|waitlist|adoption|stars?|views?|transactions?)\b|用户|客户|开发者|下载|注册|采用|星标|观看|交易/i.test(quote);
+    if(!attentionEvidence)issues.push('产品关注度不能仅由官方发布本身证明');
+  }
+  if(decision.topic==='product' && decision.admission==='usage') {
+    const usageEvidence = /\b(?:used by|users?|customers?|adoption|deployed|production|retention|transactions?|case stud(?:y|ies)|feedback)\b|用户|客户|采用|部署|生产环境|留存|交易|案例|实测|反馈/i.test(quote);
+    if(!usageEvidence)issues.push('产品使用依据没有具体采用、实测或反馈证据');
+  }
   if(!normalize(decision.relevance))issues.push('未解释主题相关性');
   if(candidate.contentKind==='background' && !normalize(decision.backgroundValue))issues.push('背景缺少当前阅读价值');
   if(candidate.priorCoverage && !normalize(decision.followUpNovelty))issues.push('重复主体缺少新的实质进展');

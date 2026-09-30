@@ -35,10 +35,13 @@ test('v2 retains more than four qualified stories in one category and renders th
 });
 
 test('attention OR actual usage admits an early product; a bare launch or invented quote does not',()=>{
- const c=candidate();const d={...decision(c),topic:'product',admission:'attention'};
- assert.deepEqual(screeningIssues(c,d),[]);assert.deepEqual(screeningIssues(c,{...d,admission:'usage'}),[]);
+ const c=candidate();const media={...c,sources:[{...c.sources[0],kind:'media',isPrimary:false}]};const d={...decision(media),evidenceUrl:media.sources[0].url,topic:'product',admission:'attention'};
+ assert.deepEqual(screeningIssues(media,d),[]);assert.deepEqual(screeningIssues(c,{...decision(c),topic:'product',admission:'usage'}),[]);
  assert.ok(screeningIssues(c,{...d,admission:'material-change'}).length);
  assert.ok(screeningIssues(c,{...d,evidenceQuote:'A fabricated record of ten million users'}).length);
+ const bareQuote='The company officially launched the product.';const bare={...c,sources:[{...c.sources[0],excerpt:bareQuote}]};
+ assert.match(screeningIssues(bare,{...decision(bare),topic:'product',admission:'attention',evidenceQuote:bareQuote})[0],/官方发布/);
+ assert.match(screeningIssues(bare,{...decision(bare),topic:'product',admission:'usage',evidenceQuote:bareQuote})[0],/使用依据/);
 });
 
 test('old background retains original date, rejects missing/future dates and known published content',async()=>{
