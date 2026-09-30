@@ -86,6 +86,15 @@ test('意见先确认局部正确但最后指出真实错误时仍阻断',()=>{
   assert.equal(review.issues[0].severity,'blocking');
 });
 
+test('轻微措辞歧义降为提醒，明确与材料冲突仍阻断',()=>{
+  const review=normalizeReview({passed:false,issues:[
+    {severity:'blocking',problem:'这里可能引起歧义，建议修正。'},
+    {severity:'blocking',problem:'数字错误且与材料不符，建议修正。'}
+  ]});
+  assert.equal(review.issues[0].severity,'warning');
+  assert.equal(review.issues[1].severity,'blocking');
+});
+
 test('案例素材验证在工作日不调用模型或SMTP',async()=>{
   const {root,services}=fixture();
   services.generateBusinessCase=async()=>{throw Error('禁止模型调用');};
