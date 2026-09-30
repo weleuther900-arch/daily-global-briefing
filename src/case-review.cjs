@@ -18,7 +18,7 @@ function normalizeReview(review) {
   const issues = Array.isArray(review?.issues) ? review.issues : [];
   const nonBlockingSignals = [
     '数字正确', '表述一致', '与材料一致', '无问题', '不构成事实错误',
-    '不构成blocking', '问题不成立', '基本符合材料'
+    '不构成blocking', '问题不成立', '基本符合材料', '不应视为错误'
   ];
   const omissionSignals = ['未提及', '应补充', '缺少'];
   const normalized = issues.map((issue) => {
@@ -26,7 +26,8 @@ function normalizeReview(review) {
     const problem = String(issue.problem || '');
     const confirmsDraft = nonBlockingSignals.some((signal) => problem.includes(signal));
     const onlyRequestsMoreDetail = omissionSignals.some((signal) => problem.includes(signal));
-    if (confirmsDraft && onlyRequestsMoreDetail) return { ...issue, severity: 'warning' };
+    const explicitlyConcludesNoError = /(无错误|未发现事实错误|不算错误|不是错误|不构成blocking|问题不成立|文章准确|表述准确|表述正确)[。；]?$/i.test(problem.trim());
+    if ((confirmsDraft && onlyRequestsMoreDetail) || explicitlyConcludesNoError) return { ...issue, severity: 'warning' };
     return issue;
   });
   const blocking = normalized.filter((issue) => issue?.severity === 'blocking');
