@@ -134,7 +134,7 @@ function summarizeModelUsage(costs = []) {
 function monthlyBudgetForRun(now = new Date(), environment = process.env) {
   const hardStopUntil = Date.parse(environment.AI_HARD_STOP_UNTIL || '');
   if (Number.isFinite(hardStopUntil) && now.getTime() < hardStopUntil) return 0;
-  const budget = Number(environment.MONTHLY_AI_BUDGET_CNY || 10);
+  const budget = Number(environment.MONTHLY_AI_BUDGET_CNY || 15);
   return Number.isFinite(budget) && budget >= 0 ? budget : 10;
 }
 

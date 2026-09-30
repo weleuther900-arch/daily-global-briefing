@@ -552,7 +552,7 @@ async function generateAndReview(candidateResult, options = {}) {
     fetchImpl: options.fetchImpl,
     now: options.now,
     ledgerPath: options.ledgerPath,
-    monthlyBudgetCny: options.monthlyBudgetCny ?? 10,
+    monthlyBudgetCny: options.monthlyBudgetCny ?? 15,
     budgetCostMultiplier: options.budgetCostMultiplier ?? Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),
     dailyTokenBudget: options.dailyTokenBudget ?? (process.env.DAILY_AI_TOKEN_BUDGET ? Number(process.env.DAILY_AI_TOKEN_BUDGET) : undefined),
     usdCnyRate: options.usdCnyRate ?? 7.2

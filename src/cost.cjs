@@ -49,7 +49,7 @@ function getDayTokenSpend(ledger, day = dayKey()) {
     .reduce((total, entry) => total + Number(entry.inputTokens || 0) + Number(entry.outputTokens || 0), 0);
 }
 
-function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 10) {
+function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 15) {
   const ledger = readJson(ledgerPath, { entries: [] });
   const spent = getMonthSpend(ledger);
   if (spent + projectedCost.cny > monthlyBudgetCny) {

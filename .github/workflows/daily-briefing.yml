@@ -63,7 +63,7 @@ jobs:
       DEEPSEEK_MODEL: deepseek-v4-flash
       BRIEFING_REVIEWER_PROVIDER: deepseek
       DEEPSEEK_REVIEW_MODEL: deepseek-v4-pro
-      MONTHLY_AI_BUDGET_CNY: '10'
+      MONTHLY_AI_BUDGET_CNY: '15'
       BUDGET_COST_SAFETY_MULTIPLIER: '2'
       USD_CNY_RATE: ${{ vars.USD_CNY_RATE || '7.2' }}
       ENABLE_EMAIL_SEND: ${{ secrets.ENABLE_EMAIL_SEND || 'false' }}
