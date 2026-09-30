@@ -489,6 +489,7 @@ async function runDaily(options = {}) {
 }
 
 async function runWeeklyCase(options) {
+  const reviewPolicyVersion = 2;
   const now = options.now || new Date();
   const services = options.services || {};
   const readyPath = path.join(options.stateDirectory, 'weekly-case-ready.json');
@@ -497,12 +498,12 @@ async function runWeeklyCase(options) {
   const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const sector = (options.validateOnly || options.allowCaseRecovery) && ['technology','traditional'].includes(options.caseSector) ? options.caseSector : nextCaseSector(history);
   const failuresPath=path.join(options.stateDirectory,'weekly-case-attempts.json');
-  const savedFailures=readJson(failuresPath,{date:options.date,failed:[]});
-  const failed=savedFailures.date===options.date?savedFailures.failed:[];
+  const savedFailures=readJson(failuresPath,{date:options.date,reviewPolicyVersion,failed:[]});
+  const failed=savedFailures.date===options.date && savedFailures.reviewPolicyVersion===reviewPolicyVersion?savedFailures.failed:[];
   let ready = readJson(readyPath, null);
   let sourceIds = [];
   let attempts = [];
-  const reusable = ready && ready.version === 1 && ready.date === options.date && ready.review?.passed === true
+  const reusable = ready && ready.version === reviewPolicyVersion && ready.date === options.date && ready.review?.passed === true
     && !(ready.review.issues || []).some(issue => issue.severity === 'blocking')
     && ready.digest === hash({ content: ready.content, materials: ready.materials })
     && integrityIssues(ready.content, ready.materials).length === 0;
@@ -536,13 +537,13 @@ async function runWeeklyCase(options) {
           const error = new Error('案例未满足投递前完整性或审校要求。'); error.code = 'CASE_REVIEW_BLOCKED'; error.context = { review: { passed: false, issues } }; throw error;
         }
         attempts.push({ entity: materials[0].entityKey, status: 'review-passed', reviews: generated.attempts || [] });
-        ready = { version: 1, date: options.date, sector, content, materials, review: generated.review, costs: generated.costs || [], attempts, digest: hash({ content, materials }) };
+        ready = { version: reviewPolicyVersion, date: options.date, sector, content, materials, review: generated.review, costs: generated.costs || [], attempts, digest: hash({ content, materials }) };
         writeJsonAtomic(readyPath, ready);
         break;
       } catch (error) {
         if (!['CASE_REVIEW_BLOCKED','MODEL_OUTPUT_INVALID'].includes(error.code)) throw error;
         failed.push({entity:materials[0].entityKey,materialDigest:hash(materials),code:error.code});
-        writeJsonAtomic(failuresPath,{date:options.date,failed});
+        writeJsonAtomic(failuresPath,{date:options.date,reviewPolicyVersion,failed});
         attempts.push({ entity: materials[0].entityKey, status: error.code, review: error.context?.review || null, reviews: error.context?.attempts || [] });
         writeJsonAtomic(auditPath, { status: 'trying-alternative-topic', sourceIds, attempts, sent: false });
       }

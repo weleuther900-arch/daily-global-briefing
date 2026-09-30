@@ -14,6 +14,25 @@ function integrityIssues(content, materials) {
   return issues.map((problem) => ({ severity: 'blocking', problem }));
 }
 
+function normalizeReview(review) {
+  const issues = Array.isArray(review?.issues) ? review.issues : [];
+  const nonBlockingSignals = [
+    '数字正确', '表述一致', '与材料一致', '无问题', '不构成事实错误',
+    '不构成blocking', '问题不成立', '基本符合材料'
+  ];
+  const omissionSignals = ['未提及', '应补充', '缺少'];
+  const normalized = issues.map((issue) => {
+    if (issue?.severity !== 'blocking') return issue;
+    const problem = String(issue.problem || '');
+    const confirmsDraft = nonBlockingSignals.some((signal) => problem.includes(signal));
+    const onlyRequestsMoreDetail = omissionSignals.some((signal) => problem.includes(signal));
+    if (confirmsDraft && onlyRequestsMoreDetail) return { ...issue, severity: 'warning' };
+    return issue;
+  });
+  const blocking = normalized.filter((issue) => issue?.severity === 'blocking');
+  return { passed: blocking.length === 0, issues: normalized };
+}
+
 async function generateReviewedCase(materials, options, contract) {
   const call = options.callStructured || callStructured;
   const common = {
@@ -41,6 +60,7 @@ async function generateReviewedCase(materials, options, contract) {
       schemaName: 'weekly_business_case_review', schema: contract.caseReviewSchema(), maxOutputTokens: 1800
     });
     if (reviewed.cost) costs.push(reviewed.cost);
+    reviewed.parsed = normalizeReview(reviewed.parsed);
     attempts.push({ attempt: attempt + 1, review: reviewed.parsed });
     try {
       contract.assertCaseReviewPassed(reviewed.parsed, materials);
@@ -59,4 +79,4 @@ async function generateReviewedCase(materials, options, contract) {
   }
 }
 
-module.exports = { generateReviewedCase, integrityIssues };
+module.exports = { generateReviewedCase, integrityIssues, normalizeReview };

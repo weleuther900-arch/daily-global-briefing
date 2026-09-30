@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { generateBusinessCase } = require('../src/case.cjs');
+const { normalizeReview } = require('../src/case-review.cjs');
 const { runDaily, selectWeeklyCaseMaterialGroups } = require('../src/runtime.cjs');
 const { weeklyCaseDate, isWeeklyCaseInvocationAllowed } = require('../src/model-window.cjs');
 
@@ -63,6 +64,16 @@ test('修复后仍被拒绝则保留两轮审校，不放行案例',async()=>{
     return {parsed:options.schemaName==='weekly_business_case'?contentFor(materials):{passed:false,issues:[{severity:'blocking',problem:'数字无依据'}]},cost};
   }}),error=>error.code==='CASE_REVIEW_BLOCKED'&&error.context.attempts.length===2);
   assert.equal(calls,4);
+});
+
+test('审校已确认事实正确时，不把缺少次要细节继续作为阻断',()=>{
+  const review=normalizeReview({passed:false,issues:[
+    {severity:'blocking',problem:'稿件数字正确，但未提及另一项拆解，应补充。'},
+    {severity:'blocking',problem:'稿件把地点写成新泽西，材料明确为康涅狄格州，应修正。'}
+  ]});
+  assert.equal(review.passed,false);
+  assert.equal(review.issues[0].severity,'warning');
+  assert.equal(review.issues[1].severity,'blocking');
 });
 
 test('案例素材验证在工作日不调用模型或SMTP',async()=>{
