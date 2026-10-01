@@ -115,12 +115,7 @@ npm run run:sample
 npm run discover
 npm run details
 npm run candidates -- --date 2026-08-17
-
-# 启动本地Memory单词表（词库保存在项目内state目录）
-npm run memory
 ```
-
-Memory 的单词学习不设每日数量。它保留每个单词自己的 Day 勾选，以 `All / Learning / Mastered` 三个目录管理词库，详见 [单词记忆](docs/单词记忆.md)。
 
 ## 自定义方式
 
@@ -150,7 +145,6 @@ scripts/            本地命令入口与预览工具
 tests/              Node.js 自动化测试
 examples/           不含真实新闻的流程样例
 design/             邮件视觉稿与渲染素材
-memory/             本地Memory单词表界面
 docs/               公开项目、覆盖与部署说明
 .private/           仅本地保留的配置和记录（被 Git 忽略）
 ```
