@@ -18,18 +18,19 @@ function normalizeReview(review) {
   const issues = Array.isArray(review?.issues) ? review.issues : [];
   const nonBlockingSignals = [
     '数字正确', '表述一致', '与材料一致', '无问题', '不构成事实错误',
-    '不构成blocking', '问题不成立', '基本符合材料', '不应视为错误', '表述准确'
+    '不构成blocking', '问题不成立', '基本符合材料', '不应视为错误', '表述准确',
+    'is accurate', 'matches the source', 'which is correct', 'no issue here', 'not a factual error'
   ];
-  const omissionSignals = ['未提及', '未明确', '应补充', '缺少'];
-  const softWordingSignals = ['轻微不准确', '可能引起歧义', '建议修正'];
-  const hardConflictSignals = ['地点错误', '数字错误', '主体错误', '与材料不符', '没有来源支持', '无来源支持'];
+  const omissionSignals = ['未提及', '未明确', '应补充', '缺少', 'omits', 'does not cite', 'should specify'];
+  const softWordingSignals = ['轻微不准确', '可能引起歧义', '建议修正', 'ambiguous', 'could mislead', 'may be acceptable'];
+  const hardConflictSignals = ['地点错误', '数字错误', '主体错误', '与材料不符', '没有来源支持', '无来源支持', 'incorrect', 'does not match', 'contradicts', 'unsupported', 'not supported', 'wrong'];
   const normalized = issues.map((issue) => {
     if (issue?.severity !== 'blocking') return issue;
     const problem = String(issue.problem || '');
     const confirmsDraft = nonBlockingSignals.some((signal) => problem.includes(signal));
     const onlyRequestsMoreDetail = omissionSignals.some((signal) => problem.includes(signal));
     const onlySoftWording = softWordingSignals.some((signal) => problem.includes(signal)) && !hardConflictSignals.some((signal) => problem.includes(signal));
-    const explicitlyConcludesNoError = /(无错误|未发现事实错误|不算错误|不是错误|不构成blocking|问题不成立|文章准确|表述准确|表述正确)[。；]?$/i.test(problem.trim());
+    const explicitlyConcludesNoError = /(无错误|未发现事实错误|不算错误|不是错误|不构成blocking|问题不成立|文章准确|表述准确|表述正确|no issue here|not a factual error)[。；.]?$/i.test(problem.trim());
     if ((confirmsDraft && onlyRequestsMoreDetail) || explicitlyConcludesNoError || onlySoftWording) return { ...issue, severity: 'warning' };
     return issue;
   });

@@ -95,6 +95,18 @@ test('轻微措辞歧义降为提醒，明确与材料冲突仍阻断',()=>{
   assert.equal(review.issues[1].severity,'blocking');
 });
 
+test('英文审校确认准确或只要求次要补充时降为提醒',()=>{
+  const review=normalizeReview({passed:false,issues:[
+    {severity:'blocking',problem:'The draft matches the source and is accurate. No issue here.'},
+    {severity:'blocking',problem:'The number is accurate, but the draft omits a parenthetical clarification, which could mislead readers.'},
+    {severity:'blocking',problem:'The draft is incorrect and contradicts the source.'}
+  ]});
+  assert.equal(review.passed,false);
+  assert.equal(review.issues[0].severity,'warning');
+  assert.equal(review.issues[1].severity,'warning');
+  assert.equal(review.issues[2].severity,'blocking');
+});
+
 test('案例素材验证在工作日不调用模型或SMTP',async()=>{
   const {root,services}=fixture();
   services.generateBusinessCase=async()=>{throw Error('禁止模型调用');};

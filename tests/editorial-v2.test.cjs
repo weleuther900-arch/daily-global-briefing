@@ -87,6 +87,18 @@ test('thinking uses a separate material pool and rotates only after a delivered 
  assert.match(renderPlainText(runEditorialPipeline({editorialVersion:2,briefingDate:date,candidates:[],thinking:result.thinking})),/续费为何不等于满意/);
 });
 
+test('thinking is not withheld when review text explicitly says the draft is accurate',async()=>{
+ const source=candidate(0);let reviewCalls=0;
+ const result=await generateThinking([source],{thinking:[]},{callStructured:async opts=>{
+  if(opts.schemaName==='business_thinking_review_v2'){
+   reviewCalls++;
+   return {parsed:{passed:false,issues:[{severity:'blocking',problem:'The draft matches the source and is accurate. No issue here.'}]}};
+  }
+  return {parsed:{type:'explanation',topicKey:'续费机制',title:'续费为何不等于满意',paragraphs:['材料显示订阅留存发生变化。','转换成本也可能影响续费；这是条件分析。'],question:'哪些证据能区分满意与迁移困难？',variables:[],limits:'不能仅凭续费推断原因。',sources:source.sources,criticalFacts:[{claim:'经营变化',sourceUrls:[source.sources[0].url]}]}};
+ }});
+ assert.equal(reviewCalls,1);assert.equal(result.audit.status,'passed');assert.equal(result.thinking.reviewed,true);
+});
+
 test('screening backlog survives scans without being marked attempted or losing original dates',()=>{
  const state=temp(),item={sourceId:'official',url:'https://example.com/old',title:'Old software case',publishedAt:'2019-01-01T00:00:00Z'};
  const registry={sources:[{id:'official'}]};planEditorialDiscovery({sources:[{items:[item]}]},registry,state,date,{detailLimit:0});
