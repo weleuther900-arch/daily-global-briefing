@@ -29,7 +29,8 @@ test('月度费用门禁在调用前阻止超额', () => {
 });
 
 test('月度门禁使用预留成本而不是实际成本', () => {
-  assert.equal(getMonthSpend({ entries: [{ month: new Date().toISOString().slice(0, 7), cny: 0.5, budgetCny: 1 }] }), 1);
+  assert.equal(getMonthSpend({ entries: [{ month: monthKey(), cny: 0.5, budgetCny: 1 }] }), 1);
+  assert.equal(getMonthSpend({ entries: [{ month: monthKey(new Date('2026-09-30T23:06:00Z')), cny: 0.5, budgetCny: 1 }] }, monthKey(new Date('2026-09-30T23:06:00Z'))), 1);
 });
 
 test('每日Token门禁在调用前阻止超额', () => {
