@@ -416,7 +416,7 @@ async function runDaily(options = {}) {
       const partial = readJson(partialPath,null);
       const initialEvents = partial?.date===date && partial.digest===hash(JSON.stringify(partial.events)) ? partial.events : [];
       const modelOptions={...options.modelOptions,now:options.now,allowAuthorizedRecovery:options.allowDailyRecovery===true,ledgerPath:path.join(stateDirectory,'cost-ledger.json'),monthlyBudgetCny,budgetCostMultiplier:Number(process.env.BUDGET_COST_SAFETY_MULTIPLIER || 2),usdCnyRate:Number(process.env.USD_CNY_RATE || 7.2),
-        screeningLimit:Number(process.env.EDITORIAL_SCREENING_LIMIT || 80),generationLimit:Number(process.env.EDITORIAL_GENERATION_LIMIT || 18),initialEvents,
+        screeningLimit:Number(process.env.EDITORIAL_SCREENING_LIMIT || 80),generationLimit:Number(process.env.EDITORIAL_GENERATION_LIMIT || 18),githubMomentumReserve:Number(process.env.EDITORIAL_GITHUB_MOMENTUM_RESERVE || 3),initialEvents,
         onError: error=>log('model-request-error',{code:error.code || 'UNEXPECTED',message:error.message}),
         onCheckpoint: checkpoint=>writeJsonAtomic(partialPath,{date,...checkpoint,digest:hash(JSON.stringify(checkpoint.events))})};
       generated = await (services.generateEdition || generateEdition)(candidates,modelOptions);

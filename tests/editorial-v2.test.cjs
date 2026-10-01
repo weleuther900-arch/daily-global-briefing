@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
-const {generateEdition,screeningIssues}=require('../src/editorial-engine.cjs');
+const {generateEdition,screeningIssues,selectGenerationPool}=require('../src/editorial-engine.cjs');
 const {generateThinking,nextThinkingType}=require('../src/business-thinking.cjs');
 const {prepareEditorialCandidates,planEditorialDiscovery}=require('../src/editorial-candidates.cjs');
 const {recordDeliveredEdition,loadEditorialHistory,previousCoverage}=require('../src/editorial-history.cjs');
@@ -32,6 +32,13 @@ test('v2 retains more than four qualified stories in one category and renders th
  assert.equal(result.events.filter(e=>e.format==='brief'&&e.sections.length===0).length,3);
  assert.match(renderHtml(result),/简讯/);assert.match(renderPlainText(result),/简讯/);
  assert.equal(result.thinking,null);assert.doesNotMatch(renderPlainText(result),/二选一|先做可逆决策/);
+});
+
+test('qualified fast-rising GitHub projects keep reserved generation slots',()=>{
+ const ordinary=Array.from({length:6},(_,i)=>({...candidate(i),id:`ordinary-${i}`,selection:{importance:9}}));
+ const rising=[0,1,2].map(i=>({...candidate(i),id:`rising-${i}`,title:`repo-${i}`,observation:{kind:'github-momentum'},selection:{importance:5}}));
+ const pool=selectGenerationPool([...ordinary,...rising],4,3);
+ assert.deepEqual(pool.map(item=>item.id),['rising-0','rising-1','rising-2','ordinary-0']);
 });
 
 test('attention OR actual usage admits an early product; a bare launch or invented quote does not',()=>{

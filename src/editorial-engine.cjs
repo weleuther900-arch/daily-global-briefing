@@ -65,6 +65,16 @@ function eventIssues(event,candidate,format) {
   return issues;
 }
 
+function selectGenerationPool(selected, limit, githubMomentumReserve=3) {
+  const maximum=Math.max(0,Number(limit) || 0);
+  if(!maximum)return [];
+  const reserve=Math.max(0,Math.min(maximum,Number(githubMomentumReserve) || 0));
+  const momentum=selected.filter(candidate=>candidate.observation?.kind==='github-momentum').slice(0,reserve);
+  const momentumIds=new Set(momentum.map(candidate=>candidate.id));
+  const regular=selected.filter(candidate=>!momentumIds.has(candidate.id)).slice(0,maximum-momentum.length);
+  return [...momentum,...regular];
+}
+
 async function generateEdition(candidateResult,options={}) {
   const costs=[],call=makeCaller(options,costs),audit={version:2,decisions:[],generation:[],deferred:[],resourceStop:null};
   const generator={provider:options.generatorProvider || process.env.BRIEFING_GENERATOR_PROVIDER || 'deepseek',model:options.generatorModel || process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',apiKey:options.generatorApiKey || options.apiKey};
@@ -95,8 +105,10 @@ async function generateEdition(candidateResult,options={}) {
   const retained=[...(options.initialEvents || [])];
   let featureCount=retained.filter(e=>e.format==='feature').length;
   const maximum=options.generationLimit ?? 40;
-  for(const c of selected.slice(maximum))deferred(c,'generation-resource-limit');
-  for(const [index,candidate] of selected.slice(0,maximum).entries()) {
+  const generationPool=selectGenerationPool(selected,maximum,options.githubMomentumReserve ?? 3);
+  const generationIds=new Set(generationPool.map(candidate=>candidate.id));
+  for(const c of selected.filter(candidate=>!generationIds.has(candidate.id)))deferred(c,'generation-resource-limit');
+  for(const [index,candidate] of generationPool.entries()) {
     if(retained.some(event=>event.contentHash===candidate.contentHash && event.sources.some(source=>candidate.sources.some(s=>s.url===source.url))))continue;
     const format=featureCount<(options.featureLimit ?? 3) && candidate.selection.importance>=6?'feature':'brief';
     let draft=null,problems=[],accepted=false;
@@ -122,10 +134,10 @@ async function generateEdition(candidateResult,options={}) {
       }
     }catch(error) {
       audit.generation.push({id:candidate.id,title:candidate.title,accepted:false,error:error.message,code:error.code,attempts});deferred(candidate,error.code || 'generation-failed');
-      if(RESOURCE_CODES.has(error.code)){audit.resourceStop=error.code;for(const c of selected.slice(index+1,maximum))deferred(c,error.code);break;}
+      if(RESOURCE_CODES.has(error.code)){audit.resourceStop=error.code;for(const c of generationPool.slice(index+1))deferred(c,error.code);break;}
     }
   }
   return {briefing:{editorialVersion:2,briefingDate:candidateResult.briefingDate,candidates:retained,thinking:null,categoryCandidateCounts:Object.fromEntries([...new Set(pool.map(c=>c.category))].map(category=>[category,pool.filter(c=>c.category===category).length]))},review:{passed:true,...audit},costs,selectedCandidates:selected};
 }
 
-module.exports={editorialPolicy,eventIssues,generateEdition,makeCaller,object,array,string,sourceSchema,factSchema,reviewSchema,screeningIssues,RESOURCE_CODES};
+module.exports={editorialPolicy,eventIssues,generateEdition,makeCaller,object,array,string,selectGenerationPool,sourceSchema,factSchema,reviewSchema,screeningIssues,RESOURCE_CODES};
