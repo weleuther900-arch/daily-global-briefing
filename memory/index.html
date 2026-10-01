@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Memory · 单词表</title>
+  <link rel="stylesheet" href="memory.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">VOCABULARY</p><h1>Memory</h1><p class="subtitle">没有每日目标。每个单词按自己的 Day 勾选继续学习。</p></div>
+      <div class="actions"><label class="button secondary">导入词库<input id="import-file" type="file" accept="application/json" hidden></label><button id="export-button" class="secondary">导出词库</button></div>
+    </header>
+
+    <form id="add-form" class="add-form">
+      <input name="word" aria-label="英文单词" placeholder="Word" required>
+      <input name="meaning" aria-label="中文释义" placeholder="中文释义">
+      <input name="example" aria-label="例句" placeholder="例句（可选）">
+      <button type="submit">加入单词</button>
+    </form>
+
+    <nav id="tabs" aria-label="单词目录">
+      <button data-tab="All" class="active">All <span></span></button>
+      <button data-tab="Learning">Learning <span></span></button>
+      <button data-tab="Mastered">Mastered <span></span></button>
+    </nav>
+
+    <p id="status" role="status"></p>
+    <section class="table-shell"><table><thead id="table-head"></thead><tbody id="word-list"></tbody></table></section>
+  </main>
+  <template id="empty-state"><tr><td class="empty" colspan="34">这个目录还没有单词。</td></tr></template>
+  <script src="memory.js"></script>
+</body>
+</html>

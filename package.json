@@ -27,6 +27,7 @@
     "candidates": "node scripts/prepare-candidates.cjs",
     "run:sample": "node scripts/run-daily.cjs --date 2026-08-17 --fixture examples/candidates.sample.json",
     "run:daily": "node scripts/run-daily.cjs",
+    "memory": "node scripts/serve-memory.cjs",
     "watch:project": "node scripts/watch-project.cjs",
     "test": "node --test tests/*.test.cjs"
   },
