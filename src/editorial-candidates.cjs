@@ -31,13 +31,14 @@ function planEditorialDiscovery(discovery,registry,stateDirectory,briefingDate,o
   const attemptedAt=new Date().toISOString();
   const selectedUrls=new Set(selected.map(i=>canonicalizeUrl(i.url)));
   for(const item of byUrl.values())if(selectedUrls.has(canonicalizeUrl(item.url)))item.lastTriedAt=attemptedAt;
-  // 这里只存抓取线索，不丢掉原日期；背景不设年份限制。
+  // 这里只存抓取线索，不丢掉原日期；候选阶段再按背景时效规则收敛。
   writeJsonAtomic(file,{version:2,updatedAt:attemptedAt,items:[...byUrl.values()]});
   return {...discovery,sources:registry.sources.map(source=>({sourceId:source.id,items:selected.filter(item=>item.sourceId===source.id)})),editorialAudit:{discovered:eligible.length,selectedForDetails:selected.length,deferredDetails:eligible.length-selected.length}};
 }
 
-function prepareEditorialCandidates(details,briefingDate,history) {
+function prepareEditorialCandidates(details,briefingDate,history,options={}) {
   const window=getCoverageWindow(briefingDate),accepted=[],rejected=[];
+  const backgroundMaxAgeDays=Math.max(1,Number(options.backgroundMaxAgeDays ?? 30));
   for(const item of details.items || []) {
     const reasons=[];
     if(item.detailStatus!=='ready' || item.access!=='open')reasons.push('公开正文不可用');
@@ -51,6 +52,7 @@ function prepareEditorialCandidates(details,briefingDate,history) {
     const [category,relevanceScore,directScore]=routeCategory({...item,text});
     if(directScore<1)reasons.push('没有商业或约定主题相关信号');
     const contentKind=item.observation?'observation':withinEditorialWindow(item,window)?'news':'background';
+    if(contentKind==='background' && timestamp<window.end.getTime()-backgroundMaxAgeDays*86400000)reasons.push(`背景原始日期超过${backgroundMaxAgeDays}天`);
     const candidate={category,relevanceScore,title:item.title,originalTitle:item.title,publishedAt:item.publishedAt,originalDatePrecision:item.originalDatePrecision || null,contentKind,observation:item.observation || null,contentHash:hash(text),fingerprint:item.fingerprint,
       sources:[{sourceId:item.sourceId,organization:item.sourceName,title:item.title,url:item.url,tier:item.sourceTier,kind:item.sourceKind,access:item.access,isPrimary:item.sourceKind==='official' || item.sourceKind==='official-social',publishedAt:item.publishedAt,excerpt:selectEvidenceExcerpt(text,3000)}]};
     const prior=previousCoverage(candidate,history);

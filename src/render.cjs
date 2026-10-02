@@ -113,7 +113,7 @@ function renderNarrativeSection(eventNumber, subNumber, title, text, className) 
 
 function renderArticle(event, eventNumber) {
   const context = `${event.contentKind === 'background' ? `<p class="meta">背景补充：${escapeHtml(event.background?.reason || '')}</p>` : ''}${event.availability ? `<p class="meta">开放状态：${escapeHtml(event.availability)}；证据：${escapeHtml(event.evidenceBasis || '')}</p>` : ''}`;
-  if (event.format === 'brief') return `<article class="article"><h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)} <span class="tag">简讯</span></h2><div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml((event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt))))}</div>${context}<p>${escapeHtml(event.conclusion)}</p><p>${escapeHtml(event.impact)}</p><p class="meta">${escapeHtml(event.judgmentBoundary)}</p>${renderSources(event.sources)}</article>`;
+  if (event.format === 'brief') return `<article class="article brief"><h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)} <span class="tag">简讯</span></h2><div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml((event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt))))}</div>${context}<p class="brief-summary">${escapeHtml(event.conclusion)}</p><p class="brief-detail">${escapeHtml(event.impact)} <span>边界：${escapeHtml(event.judgmentBoundary)}</span></p>${renderSources(event.sources)}</article>`;
   let subNumber = 1;
   const subsections = [];
 
@@ -223,6 +223,7 @@ function renderHtml(result, config = PROJECT_CONFIG) {
     .section + .section { margin-top:10px; padding-top:38px; border-top:7px solid #f0f3f7; }
     .section-title { margin:0; padding:0 0 10px 13px; border-left:4px solid #2257a8; color:#102b52; font-size:21px; line-height:1.35; font-weight:750; }
     .article { padding:26px 0 30px; border-bottom:1px solid #e1e7ef; }
+    .article.brief { padding:18px 0 21px; }
     .section .article:last-child { border-bottom:0; }
     .article-title { margin:0; color:#162235; font-size:19px; line-height:1.48; font-weight:720; }
     .meta { margin:8px 0 0; color:#6a7786; font-size:13px; line-height:1.55; }
@@ -253,6 +254,9 @@ function renderHtml(result, config = PROJECT_CONFIG) {
     .watch-title { color:#263f5d; font-size:14px; line-height:1.5; font-weight:720; }
     .watch-reason { margin-top:3px; color:#566779; font-size:14px; line-height:1.65; }
     .source { margin:12px 0 0; color:#687789; font-size:13px; line-height:1.85; }
+    .brief-summary { margin-top:8px; color:#17283c; font-size:16px; line-height:1.68; font-weight:650; }
+    .brief-detail { margin-top:5px; color:#526274; font-size:14px; line-height:1.62; }
+    .brief-detail span { color:#6a7786; }
     .source a { color:#1959b8; border-bottom:1px solid #a9c3e6; }
     .thinking { margin:32px 0 4px; padding:22px 20px; color:#f5f8fc; background:#2c2c2e; border-radius:14px; }
     .thinking-label { color:#c7c7cc; font-size:12px; line-height:1.4; letter-spacing:.08em; }
@@ -299,6 +303,8 @@ function renderHtml(result, config = PROJECT_CONFIG) {
       .data-table thead th { border-color:#636366!important; }
       .watch-title { color:#e5e5ea!important; }
       .watch-reason { color:#aeaeb2!important; }
+      .brief-summary { color:#f2f2f7!important; }
+      .brief-detail,.brief-detail span { color:#aeaeb2!important; }
       .source a,a { color:#d6b26e!important; border-color:#8f7447!important; }
     }
   </style>
@@ -350,7 +356,7 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
         lines.push(`${eventIndex + 1}. ${event.title}【简讯】`,`${eventTimeLabel(event)}：${(event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt)))}`);
         if (event.background?.reason) lines.push(`补充价值：${event.background.reason}`);
         if (event.availability) lines.push(`开放状态：${event.availability}；证据：${event.evidenceBasis}`);
-        lines.push(event.conclusion,event.impact,event.judgmentBoundary,...event.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]),'');return;
+        lines.push(`${event.conclusion} ${event.impact} 边界：${event.judgmentBoundary}`,...event.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]),'');return;
       }
       let subNumber = 1;
       lines.push(`${eventIndex + 1}. ${event.title}`);

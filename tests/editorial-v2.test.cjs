@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
-const {generateEdition,screeningIssues,selectGenerationPool}=require('../src/editorial-engine.cjs');
+const {applyBackgroundPolicy,eventIssues,generateEdition,screeningIssues,selectGenerationPool}=require('../src/editorial-engine.cjs');
 const {generateThinking,nextThinkingType}=require('../src/business-thinking.cjs');
 const {prepareEditorialCandidates,planEditorialDiscovery}=require('../src/editorial-candidates.cjs');
 const {recordDeliveredEdition,loadEditorialHistory,previousCoverage}=require('../src/editorial-history.cjs');
@@ -15,7 +15,7 @@ const names=['云服务订阅涨价','芯片公司财报','开源项目维护成
 const proof='The company reported software subscription revenue growth and improved customer retention.';
 function candidate(i=0){return {category:'digital-economy',title:names[i] || '独立材料'+i,publishedAt:'2026-09-27T13:00:00Z',contentKind:'news',relevanceScore:3,contentHash:'content-'+i,sources:[{sourceId:'official',organization:'原始披露',title:'经营数据',url:'https://example.com/story/'+i,tier:'S',kind:'official',isPrimary:true,access:'open',excerpt:proof}]};}
 function decision(c){return {id:c.id,include:true,topic:'business',admission:'material-change',evidenceQuote:proof,evidenceUrl:c.sources[0].url,relevance:'数字商业经营变化',reason:'解释经营机制',backgroundValue:'仍有适用价值',followUpNovelty:'新增经营数据',importance:8};}
-function draft(c,brief=false){return {title:c.title,conclusion:'公司披露了经营变化。',plainLanguage:'订阅客户继续付费的情况发生变化。',impact:'若客户留存改善，收入可预测性可能提高。',judgmentBoundary:'不能据此推断下一期利润。',sections:brief?[]:[{title:'经营机制',paragraphs:['需要同时观察续费与服务成本。']}],availability:'不适用',evidenceBasis:'公司自报',backgroundReason:'帮助理解数字商业的经营机制',sources:c.sources.map(({organization,title,url})=>({organization,title,url})),criticalFacts:[{claim:'公司披露经营变化',sourceUrls:[c.sources[0].url]}]};}
+function draft(c,brief=false){return {title:c.title,conclusion:'公司披露了订阅业务与客户留存的经营变化。',plainLanguage:'订阅客户继续付费的情况发生变化。',impact:'如果客户留存改善且服务成本没有同步上升，收入的可预测性可能提高。',judgmentBoundary:'这是公司披露，仍不能据此推断下一期利润或长期趋势。',sections:brief?[]:[{title:'经营机制',paragraphs:['需要同时观察续费与服务成本。']}],availability:'不适用',evidenceBasis:'公司自报',backgroundReason:'帮助理解数字商业的经营机制',sources:c.sources.map(({organization,title,url})=>({organization,title,url})),criticalFacts:[{claim:'公司披露经营变化',sourceUrls:[c.sources[0].url]}]};}
 function caller(overrides={}){return async opts=>{
  const input=JSON.parse(opts.userPrompt);
  if(overrides[opts.schemaName])return {parsed:await overrides[opts.schemaName](input,opts)};
@@ -25,11 +25,11 @@ function caller(overrides={}){return async opts=>{
 };}
 const edition=async(candidates,options={})=>generateEdition({briefingDate:date,candidates},{callStructured:caller(),...options});
 
-test('v2 retains more than four qualified stories in one category and renders three features plus briefs',async()=>{
+test('v2 retains more than four qualified stories in one category and renders two features plus briefs',async()=>{
  const generated=await edition(names.map((_,i)=>candidate(i)));
  const result=runEditorialPipeline(generated.briefing);
- assert.equal(result.events.length,6);assert.equal(result.events.filter(e=>e.format==='feature').length,3);
- assert.equal(result.events.filter(e=>e.format==='brief'&&e.sections.length===0).length,3);
+ assert.equal(result.events.length,6);assert.equal(result.events.filter(e=>e.format==='feature').length,2);
+ assert.equal(result.events.filter(e=>e.format==='brief'&&e.sections.length===0).length,4);
  assert.match(renderHtml(result),/简讯/);assert.match(renderPlainText(result),/简讯/);
  assert.equal(result.thinking,null);assert.doesNotMatch(renderPlainText(result),/二选一|先做可逆决策/);
 });
@@ -51,14 +51,24 @@ test('attention OR actual usage admits an early product; a bare launch or invent
  assert.match(screeningIssues(bare,{...decision(bare),topic:'product',admission:'usage',evidenceQuote:bareQuote})[0],/使用依据/);
 });
 
-test('old background retains original date, rejects missing/future dates and known published content',async()=>{
+test('background is recent, clearly labelled, and never repeats known coverage',async()=>{
  const detail={sourceId:'official',sourceName:'官方',sourceTier:'S',sourceKind:'official',url:'https://example.com/old',title:'Software business case',publishedAt:'2020-01-01T00:00:00Z',text:proof,access:'open',detailStatus:'ready'};
  const prepared=prepareEditorialCandidates({items:[detail,{...detail,url:detail.url+'/future',publishedAt:'2027-01-01'},{...detail,url:detail.url+'/unknown',publishedAt:null}]},date,{events:[]});
- assert.equal(prepared.candidateCount,1);assert.equal(prepared.rejectedCount,2);assert.equal(prepared.candidates[0].contentKind,'background');
- const result=runEditorialPipeline((await edition(prepared.candidates)).briefing);
- assert.equal(result.events.length,1);assert.match(renderHtml(result),/2020/);assert.match(renderPlainText(result),/背景补充/);
+ assert.equal(prepared.candidateCount,0);assert.equal(prepared.rejectedCount,3);assert.match(prepared.rejected[0].reasons.join(' '),/背景原始日期超过30天/);
+ const recent={...detail,url:'https://example.com/recent',publishedAt:'2026-09-01T00:00:00Z'};
+ const recentPrepared=prepareEditorialCandidates({items:[recent]},date,{events:[]});assert.equal(recentPrepared.candidateCount,1);assert.equal(recentPrepared.candidates[0].contentKind,'background');
+ const result=runEditorialPipeline((await edition(recentPrepared.candidates)).briefing);
+ assert.equal(result.events.length,1);assert.match(renderHtml(result),/背景补充/);
  const state=temp();recordDeliveredEdition(state,result);
- assert.equal(prepareEditorialCandidates({items:[detail]},date,loadEditorialHistory(state)).candidateCount,0);
+ assert.equal(prepareEditorialCandidates({items:[recent]},date,loadEditorialHistory(state)).candidateCount,0);
+});
+
+test('fresh items suppress background in a busy edition and briefs stay scannable',()=>{
+ const selected=[...Array.from({length:5},(_,index)=>({...candidate(index),id:`news-${index}`,selection:{importance:7}})),...Array.from({length:2},(_,index)=>({...candidate(index+5),id:`background-${index}`,publishedAt:`2026-09-0${index+1}T00:00:00Z`,contentKind:'background',selection:{importance:8}}))];
+ const audit={deferred:[]};const retained=applyBackgroundPolicy(selected,audit);
+ assert.equal(retained.length,5);assert.equal(audit.deferred.filter(item=>item.reason==='background-held-for-quiet-day').length,2);
+ assert.match(eventIssues({...draft(candidate(),true),conclusion:'x'.repeat(281)},candidate(),'brief').join(' '),/简讯正文超过280个字符/);
+ assert.match(eventIssues({...draft(candidate()),sections:[{title:'太长',paragraphs:['x'.repeat(901)]}]},candidate(),'feature').join(' '),/重点稿正文超过900个字符/);
 });
 
 test('same-day observed GitHub popularity does not become old background after its observation window',()=>{
@@ -104,6 +114,14 @@ test('thinking is not withheld when review text explicitly says the draft is acc
   return {parsed:{type:'explanation',topicKey:'续费机制',title:'续费为何不等于满意',paragraphs:['材料显示订阅留存发生变化。','转换成本也可能影响续费；这是条件分析。'],question:'哪些证据能区分满意与迁移困难？',variables:[],limits:'不能仅凭续费推断原因。',sources:source.sources,criticalFacts:[{claim:'经营变化',sourceUrls:[source.sources[0].url]}]}};
  }});
  assert.equal(reviewCalls,1);assert.equal(result.audit.status,'passed');assert.equal(result.thinking.reviewed,true);
+});
+
+test('thinking uses a source-bound fallback after two blocked drafts',async()=>{
+ const source=candidate(0);const result=await generateThinking([source],{thinking:[]},{callStructured:async opts=>{
+  if(opts.schemaName==='business_thinking_v2')return {parsed:{type:'explanation',topicKey:'x',title:'x',paragraphs:[],question:'',variables:[],limits:'',sources:[],criticalFacts:[]}};
+  throw Error('invalid draft should not reach review');
+ }});
+ assert.equal(result.audit.status,'fallback');assert.equal(result.thinking.reviewed,true);assert.equal(result.thinking.sources[0].url,source.sources[0].url);assert.match(result.thinking.limits,/保底判断框架/);
 });
 
 test('screening backlog survives scans without being marked attempted or losing original dates',()=>{
