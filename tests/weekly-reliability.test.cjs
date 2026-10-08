@@ -15,9 +15,9 @@ const details = { items: sources.flatMap((sourceId, entity) => Array.from({lengt
   sourceId, sourceName: sourceId, title: '公开经营材料'+i, url:`https://example.com/${entity}/${i}`,
   publishedAt:'2026-09-18T00:00:00Z', detailStatus:'ready', access:'open', text:'经营材料与已确认数据。'.repeat(30)
 }))) };
-const contentFor = materials => ({ title:'经营案例', subtitle:'围绕一个可验证问题',
-  sections:Array.from({length:5},(_,i)=>({title:'章节'+i,paragraphs:['已核实事实。','条件性商业分析。']})),
-  decisionQuestions:Array.from({length:3},()=>({question:'哪个条件会改变选择？',variables:['需求','现金流']})),
+const contentFor = materials => ({ title:'经营案例', subtitle:'哪一个经营条件决定是否扩大投入？',
+  sections:['situation','decision','mechanism','outcome'].map(role=>({role,paragraphs:['已核实事实。','只解释本步骤需要的条件性商业分析。']})),
+  decisionQuestions:[{question:'哪个条件会改变选择？',variables:['需求','现金流']}],
   sources:materials.flatMap(m=>m.sources)
 });
 const cost = {model:'fixture',inputTokens:1,outputTokens:1,cny:0};

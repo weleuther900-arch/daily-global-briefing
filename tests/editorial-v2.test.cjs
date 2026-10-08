@@ -15,12 +15,12 @@ const names=['云服务订阅涨价','芯片公司财报','开源项目维护成
 const proof='The company reported software subscription revenue growth and improved customer retention.';
 function candidate(i=0){return {category:'digital-economy',title:names[i] || '独立材料'+i,publishedAt:'2026-09-27T13:00:00Z',contentKind:'news',relevanceScore:3,contentHash:'content-'+i,sources:[{sourceId:'official',organization:'原始披露',title:'经营数据',url:'https://example.com/story/'+i,tier:'S',kind:'official',isPrimary:true,access:'open',excerpt:proof}]};}
 function decision(c){return {id:c.id,include:true,topic:'business',admission:'material-change',evidenceQuote:proof,evidenceUrl:c.sources[0].url,relevance:'数字商业经营变化',reason:'解释经营机制',backgroundValue:'仍有适用价值',followUpNovelty:'新增经营数据',importance:8};}
-function draft(c,brief=false){return {title:c.title,conclusion:'公司披露了订阅业务与客户留存的经营变化。',plainLanguage:'订阅客户继续付费的情况发生变化。',impact:'如果客户留存改善且服务成本没有同步上升，收入的可预测性可能提高。',judgmentBoundary:'这是公司披露，仍不能据此推断下一期利润或长期趋势。',sections:brief?[]:[{title:'经营机制',paragraphs:['需要同时观察续费与服务成本。']}],availability:'不适用',evidenceBasis:'公司自报',backgroundReason:'帮助理解数字商业的经营机制',sources:c.sources.map(({organization,title,url})=>({organization,title,url})),criticalFacts:[{claim:'公司披露经营变化',sourceUrls:[c.sources[0].url]}]};}
+function draft(c,brief=false){return {title:c.title,conclusion:'公司披露订阅业务收入继续增长，并表示客户续费情况较上一阶段改善；这说明经营变化已经发生，但披露没有给出完整客户分层。',plainLanguage:brief?'':'订阅业务是客户按月或按年持续付费使用服务，公司需要不断交付价值才能维持续费。',impact:'如果续费改善来自真实使用增加，并且获客和服务成本没有同步上升，收入会更稳定，经营现金流也可能改善；若只是折扣或合同周期带来的短期变化，这种改善就难以持续。',judgmentBoundary:'以上属于公司披露，材料没有给出不同客户群的续费率、获客成本或服务成本，因此不能据此推断下一期利润，也不能确认它已经形成长期趋势。',sections:brief?[]:[{title:'关键细节',paragraphs:['材料同时说明收入与留存发生变化，但没有披露价格调整、客户数量和单个客户贡献，后续需要用这些数据判断增长来自客户增多、价格提高还是老客户留下。']}],availability:'不适用',evidenceBasis:'公司自报',backgroundReason:'帮助理解数字商业的经营机制',sources:c.sources.map(({organization,title,url})=>({organization,title,url})),criticalFacts:[{claim:'公司披露经营变化',sourceUrls:[c.sources[0].url]}]};}
 function caller(overrides={}){return async opts=>{
  const input=JSON.parse(opts.userPrompt);
  if(overrides[opts.schemaName])return {parsed:await overrides[opts.schemaName](input,opts)};
  if(opts.schemaName==='editorial_selection_v2')return {parsed:{decisions:input.map(decision)}};
- if(opts.schemaName==='editorial_event_v2')return {parsed:draft(input.candidate,opts.systemPrompt.includes('短消息：'))};
+ if(opts.schemaName==='editorial_event_v2')return {parsed:draft(input.candidate,opts.systemPrompt.includes('简讯：'))};
  return {parsed:{passed:true,issues:[]}};
 };}
 const edition=async(candidates,options={})=>generateEdition({briefingDate:date,candidates},{callStructured:caller(),...options});
@@ -30,7 +30,7 @@ test('v2 retains more than four qualified stories in one category and renders tw
  const result=runEditorialPipeline(generated.briefing);
  assert.equal(result.events.length,6);assert.equal(result.events.filter(e=>e.format==='feature').length,2);
  assert.equal(result.events.filter(e=>e.format==='brief'&&e.sections.length===0).length,4);
- assert.match(renderHtml(result),/简讯/);assert.match(renderPlainText(result),/简讯/);
+ assert.match(renderHtml(result),/简讯/);assert.match(renderPlainText(result),/简讯/);assert.match(renderHtml(result),/关键细节/);
  assert.equal(result.thinking,null);assert.doesNotMatch(renderPlainText(result),/二选一|先做可逆决策/);
 });
 
@@ -67,8 +67,10 @@ test('fresh items suppress background in a busy edition and briefs stay scannabl
  const selected=[...Array.from({length:5},(_,index)=>({...candidate(index),id:`news-${index}`,selection:{importance:7}})),...Array.from({length:2},(_,index)=>({...candidate(index+5),id:`background-${index}`,publishedAt:`2026-09-0${index+1}T00:00:00Z`,contentKind:'background',selection:{importance:8}}))];
  const audit={deferred:[]};const retained=applyBackgroundPolicy(selected,audit);
  assert.equal(retained.length,5);assert.equal(audit.deferred.filter(item=>item.reason==='background-held-for-quiet-day').length,2);
- assert.match(eventIssues({...draft(candidate(),true),conclusion:'x'.repeat(281)},candidate(),'brief').join(' '),/简讯正文超过280个字符/);
- assert.match(eventIssues({...draft(candidate()),sections:[{title:'太长',paragraphs:['x'.repeat(901)]}]},candidate(),'feature').join(' '),/重点稿正文超过900个字符/);
+ assert.match(eventIssues({...draft(candidate(),true),conclusion:'x'.repeat(481)},candidate(),'brief').join(' '),/简讯正文超过480个字符/);
+ assert.match(eventIssues({...draft(candidate(),true),plainLanguage:draft(candidate(),true).conclusion},candidate(),'brief').join(' '),/名词解释只是换词复述结论/);
+ assert.match(eventIssues({...draft(candidate()),sections:[{title:'太长',paragraphs:['x'.repeat(851)]}]},candidate(),'feature').join(' '),/重点稿正文超过850个字符/);
+ assert.match(eventIssues({...draft(candidate()),sections:[{title:'重复',paragraphs:[draft(candidate()).conclusion]}]},candidate(),'feature').join(' '),/关键细节.*重复/);
 });
 
 test('same-day observed GitHub popularity does not become old background after its observation window',()=>{

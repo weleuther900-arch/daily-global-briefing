@@ -113,26 +113,26 @@ function renderNarrativeSection(eventNumber, subNumber, title, text, className) 
 
 function renderArticle(event, eventNumber) {
   const context = `${event.contentKind === 'background' ? `<p class="meta">背景补充：${escapeHtml(event.background?.reason || '')}</p>` : ''}${event.availability ? `<p class="meta">开放状态：${escapeHtml(event.availability)}；证据：${escapeHtml(event.evidenceBasis || '')}</p>` : ''}`;
-  if (event.format === 'brief') return `<article class="article brief"><h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)} <span class="tag">简讯</span></h2><div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml((event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt))))}</div>${context}<p class="brief-summary">${escapeHtml(event.conclusion)}</p><p class="brief-detail">${escapeHtml(event.impact)} <span>边界：${escapeHtml(event.judgmentBoundary)}</span></p>${renderSources(event.sources)}</article>`;
+  if (event.format === 'brief') return `<article class="article brief"><h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)} <span class="tag">简讯</span></h2><div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml((event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt))))}</div>${context}<div class="brief-block"><div class="brief-label">发生了什么</div><p class="brief-summary">${escapeHtml(event.conclusion)}</p></div>${event.plainLanguage ? `<div class="brief-block"><div class="brief-label">名词解释</div><p class="brief-detail">${escapeHtml(event.plainLanguage)}</p></div>` : ''}<div class="brief-block"><div class="brief-label">为什么值得关注</div><p class="brief-detail">${escapeHtml(event.impact)}</p></div><div class="brief-block"><div class="brief-label">还不能确认</div><p class="brief-boundary">${escapeHtml(event.judgmentBoundary)}</p></div>${renderSources(event.sources)}</article>`;
   let subNumber = 1;
   const subsections = [];
 
-  for (const item of [
-    ['大白话讲解', event.plainLanguage, 'plain-language'],
-    ['相关影响', event.impact, 'impact'],
-    ['判断边界', event.judgmentBoundary, 'judgment-boundary']
-  ]) {
-    if (!item[1]) continue;
-    subsections.push(renderNarrativeSection(eventNumber, subNumber, item[0], item[1], item[2]));
+  if (event.plainLanguage) {
+    subsections.push(renderNarrativeSection(eventNumber, subNumber, '名词解释', event.plainLanguage, 'plain-language'));
     subNumber += 1;
   }
 
   for (const section of event.sections || []) {
-    const heading = `${eventNumber}.${subNumber} ${escapeHtml(section.title)}`;
+    const heading = `${eventNumber}.${subNumber} ${escapeHtml((event.sections || []).length === 1 ? '关键细节' : section.title)}`;
     subNumber += 1;
     const paragraphs = (section.paragraphs || []).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('');
     subsections.push(`<h3 class="subhead"><span class="subhead-mark"></span>${heading}</h3>${paragraphs}`);
   }
+
+  subsections.push(renderNarrativeSection(eventNumber, subNumber, '为什么值得关注', event.impact, 'impact'));
+  subNumber += 1;
+  subsections.push(renderNarrativeSection(eventNumber, subNumber, '还不能确认', event.judgmentBoundary, 'judgment-boundary'));
+  subNumber += 1;
 
   if (event.concepts && event.concepts.length > 0) {
     const heading = `${eventNumber}.${subNumber} 概念说明`;
@@ -158,7 +158,7 @@ function renderArticle(event, eventNumber) {
       <h2 class="article-title">${eventNumber}. ${escapeHtml(event.title)}</h2>
       <div class="meta">${escapeHtml(eventTimeLabel(event))}：${escapeHtml((event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt))))}${evidence}</div>
       ${renderTags(event)}${context}${event.format === 'feature' ? '<span class="tag">重点解读</span>' : ''}
-      <div class="lead-label">核心判断</div>
+      <div class="lead-label">发生了什么</div>
       <p class="lead">${escapeHtml(event.conclusion)}</p>
       ${subsections.join('')}
     </article>`;
@@ -254,9 +254,11 @@ function renderHtml(result, config = PROJECT_CONFIG) {
     .watch-title { color:#263f5d; font-size:14px; line-height:1.5; font-weight:720; }
     .watch-reason { margin-top:3px; color:#566779; font-size:14px; line-height:1.65; }
     .source { margin:12px 0 0; color:#687789; font-size:13px; line-height:1.85; }
-    .brief-summary { margin-top:8px; color:#17283c; font-size:16px; line-height:1.68; font-weight:650; }
-    .brief-detail { margin-top:5px; color:#526274; font-size:14px; line-height:1.62; }
-    .brief-detail span { color:#6a7786; }
+    .brief-block { margin-top:11px; }
+    .brief-label { color:#6a7786; font-size:12px; line-height:1.4; letter-spacing:.06em; font-weight:700; }
+    .brief-summary { margin-top:4px; color:#17283c; font-size:16px; line-height:1.68; font-weight:650; }
+    .brief-detail { margin-top:4px; color:#34475c; font-size:15px; line-height:1.68; }
+    .brief-boundary { margin-top:4px; color:#6a7786; font-size:14px; line-height:1.62; }
     .source a { color:#1959b8; border-bottom:1px solid #a9c3e6; }
     .thinking { margin:32px 0 4px; padding:22px 20px; color:#f5f8fc; background:#2c2c2e; border-radius:14px; }
     .thinking-label { color:#c7c7cc; font-size:12px; line-height:1.4; letter-spacing:.08em; }
@@ -304,7 +306,8 @@ function renderHtml(result, config = PROJECT_CONFIG) {
       .watch-title { color:#e5e5ea!important; }
       .watch-reason { color:#aeaeb2!important; }
       .brief-summary { color:#f2f2f7!important; }
-      .brief-detail,.brief-detail span { color:#aeaeb2!important; }
+      .brief-label,.brief-boundary { color:#aeaeb2!important; }
+      .brief-detail { color:#d1d1d6!important; }
       .source a,a { color:#d6b26e!important; border-color:#8f7447!important; }
     }
   </style>
@@ -356,7 +359,9 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
         lines.push(`${eventIndex + 1}. ${event.title}【简讯】`,`${eventTimeLabel(event)}：${(event.originalDatePrecision==='day'?event.publishedAt.slice(0,10)+'（原文仅提供日期）':formatBeijingDateTime(new Date(event.publishedAt)))}`);
         if (event.background?.reason) lines.push(`补充价值：${event.background.reason}`);
         if (event.availability) lines.push(`开放状态：${event.availability}；证据：${event.evidenceBasis}`);
-        lines.push(`${event.conclusion} ${event.impact} 边界：${event.judgmentBoundary}`,...event.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]),'');return;
+        lines.push(`发生了什么：${event.conclusion}`);
+        if (event.plainLanguage) lines.push(`名词解释：${event.plainLanguage}`);
+        lines.push(`为什么值得关注：${event.impact}`,`还不能确认：${event.judgmentBoundary}`,...event.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]),'');return;
       }
       let subNumber = 1;
       lines.push(`${eventIndex + 1}. ${event.title}`);
@@ -364,17 +369,20 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
       if (event.background?.reason) lines.push(`补充价值：${event.background.reason}`);
       if (event.availability) lines.push(`开放状态：${event.availability}；证据：${event.evidenceBasis}`);
       if (event.tags && event.tags.length > 0) lines.push(`标签：${event.tags.join('、')}`);
-      lines.push('', `核心判断：${event.conclusion}`, '');
-      for (const [title, value] of [['大白话讲解', event.plainLanguage], ['相关影响', event.impact], ['判断边界', event.judgmentBoundary]]) {
-        if (!value) continue;
-        lines.push(`${eventIndex + 1}.${subNumber} ${title}`, value, '');
+      lines.push('', `发生了什么：${event.conclusion}`, '');
+      if (event.plainLanguage) {
+        lines.push(`${eventIndex + 1}.${subNumber} 名词解释`, event.plainLanguage, '');
         subNumber += 1;
       }
       for (const section of event.sections || []) {
-        lines.push(`${eventIndex + 1}.${subNumber} ${section.title}`);
+        lines.push(`${eventIndex + 1}.${subNumber} ${(event.sections || []).length === 1 ? '关键细节' : section.title}`);
         subNumber += 1;
         lines.push(...section.paragraphs, '');
       }
+      lines.push(`${eventIndex + 1}.${subNumber} 为什么值得关注`, event.impact, '');
+      subNumber += 1;
+      lines.push(`${eventIndex + 1}.${subNumber} 还不能确认`, event.judgmentBoundary, '');
+      subNumber += 1;
       if (event.concepts && event.concepts.length > 0) {
         lines.push(`${eventIndex + 1}.${subNumber} 概念说明`);
         subNumber += 1;

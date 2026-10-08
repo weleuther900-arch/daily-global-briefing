@@ -75,7 +75,7 @@ test('HTML与纯文本包含相同事件，且深色模式使用纯黑底色', (
     assert.ok(html.includes(category));
     assert.ok(text.includes(category));
   }
-  for (const value of ['核心判断', '大白话讲解', '相关影响', '判断边界', 'M = R − C', '验证变量', '三分钟商业思考']) {
+  for (const value of ['发生了什么', '名词解释', '为什么值得关注', '还不能确认', 'M = R − C', '验证变量', '三分钟商业思考']) {
     assert.ok(html.includes(value));
     assert.ok(text.includes(value));
   }

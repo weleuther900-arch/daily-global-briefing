@@ -1,6 +1,7 @@
 'use strict';
 const {callStructured,reviewerConfig}=require('./openai.cjs');
 const {hash}=require('./editorial-history.cjs');
+const {jaccardSimilarity}=require('./pipeline.cjs');
 const string={type:'string'};
 const array=items=>({type:'array',items});
 const object=properties=>({type:'object',additionalProperties:false,required:Object.keys(properties),properties});
@@ -57,15 +58,31 @@ function eventIssues(event,candidate,format) {
   const displayed=new Set((event?.sources || []).map(s=>s.url));
   if(!Array.isArray(event?.criticalFacts)||!event.criticalFacts.length)issues.push('缺少关键事实');
   for(const fact of event?.criticalFacts || [])if(!normalize(fact.claim)||!Array.isArray(fact.sourceUrls)||!fact.sourceUrls.length||fact.sourceUrls.some(url=>!displayed.has(url)))issues.push('关键事实没有绑定展示来源');
-  if(!Array.isArray(event?.sections) || (format==='feature' && (!normalize(event.plainLanguage)||event.sections.length<1)) || (event?.sections || []).some(s=>!normalize(s.title)||!Array.isArray(s.paragraphs)||!s.paragraphs.length||s.paragraphs.some(p=>!normalize(p))))issues.push('重点解释或正文结构不完整');
+  if(!Array.isArray(event?.sections) || (format==='feature' && event.sections.length!==1) || (event?.sections || []).some(s=>!normalize(s.title)||!Array.isArray(s.paragraphs)||!s.paragraphs.length||s.paragraphs.length>2||s.paragraphs.some(p=>!normalize(p))))issues.push('重点稿必须只有一个关键细节小节，含一至两段');
   if(format==='brief' && event?.sections?.length)issues.push('短消息不得填充长稿章节');
-  if(format==='brief' && briefTextLength(event)<60)issues.push('简讯正文少于60个字符，无法说明变化、意义与边界');
-  if(format==='brief' && briefTextLength(event)>280)issues.push('简讯正文超过280个字符，不利于快速扫读');
-  if(format==='feature' && featureTextLength(event)>900)issues.push('重点稿正文超过900个字符，不利于连续阅读');
+  if(format==='brief' && normalize(event?.plainLanguage).length>100)issues.push('简讯名词解释超过100个字符');
+  if(format==='brief' && briefTextLength(event)<180)issues.push('简讯正文少于180个字符，无法讲清变化、意义与边界');
+  if(format==='brief' && briefTextLength(event)>480)issues.push('简讯正文超过480个字符，不利于快速扫读');
+  if(format==='feature' && featureTextLength(event)<280)issues.push('重点稿正文少于280个字符，无法形成完整解释');
+  if(format==='feature' && featureTextLength(event)>850)issues.push('重点稿正文超过850个字符，不利于连续阅读');
+  if(format==='feature') {
+    const details=(event.sections || []).flatMap(section=>section.paragraphs || []);
+    for(const paragraph of details) {
+      if([event.conclusion,event.plainLanguage,event.impact].filter(Boolean).some(text=>narrativeOverlap(text,paragraph)))issues.push('关键细节与结论、名词解释或商业影响重复');
+    }
+  }
+  if(event.plainLanguage && narrativeOverlap(event.conclusion,event.plainLanguage,0.3))issues.push('名词解释只是换词复述结论');
   if(candidate.contentKind==='background' && !normalize(event?.backgroundReason))issues.push('背景没有当前阅读价值');
   if(candidate.selection?.topic==='product' && (!normalize(event?.availability)||!normalize(event?.evidenceBasis)))issues.push('产品开放状态或证据归属缺失');
   if(JSON.stringify(event || {}).includes('*'))issues.push('正文含星号');
   return issues;
+}
+
+function narrativeOverlap(left,right,threshold=0.22) {
+  const a=normalize(left),b=normalize(right);
+  if(a.length<24||b.length<24)return false;
+  if(Math.min(a.length,b.length)>=32&&(a.includes(b)||b.includes(a)))return true;
+  return jaccardSimilarity(a,b)>=threshold;
 }
 
 function selectGenerationPool(selected, limit, githubMomentumReserve=3) {
@@ -138,7 +155,7 @@ async function generateEdition(candidateResult,options={}) {
     const attempts=[];
     try {
       for(let attempt=0;attempt<2;attempt++) {
-        draft=await call({...generator,schemaName:'editorial_event_v2',schema:eventSchema,maxOutputTokens:format==='feature'?1800:850,systemPrompt:`你写一条${format==='feature'?'重点稿：正文合计不超过900个中文字符，用一节、最多两段解释是什么、关键差异和商业传导机制，不重复':'短消息：conclusion、impact、judgmentBoundary合计60至280个中文字符，先给结论，再给意义与边界；sections为空数组，不填长稿模板'}。使用日常中文和短句；术语必须顺手用一句白话解释。${safety}${editorialPolicy} 产品不知道开放状态就明确未确认，非产品的availability可空。backgroundReason仅背景需要，普通消息可空。sources最多两项，criticalFacts逐项绑定来源。${attempt?'唯一一次修复：删除或改写指出的问题，不能新增事实。':''}`,userPrompt:JSON.stringify({candidate,previousDraft:attempt?draft:null,issues:problems})});
+        draft=await call({...generator,schemaName:'editorial_event_v2',schema:eventSchema,maxOutputTokens:format==='feature'?1800:1100,systemPrompt:`你写一条${format==='feature'?'重点稿：按固定逻辑写。conclusion只回答发生了什么；plainLanguage只解释读者必须知道的一个术语，不需要解释时填空字符串；sections恰好一节、一至两段，只放结论没有讲过的关键证据或差异；impact只讲它怎样影响用户、成本、收入或竞争；judgmentBoundary只讲仍不能确认什么。正文合计280至850个中文字符，各部分不得用换词方式重复同一事实':'简讯：conclusion只回答发生了什么，impact讲清为什么值得关注和影响怎样传导，judgmentBoundary说明仍不知道什么，三项合计180至480个中文字符；plainLanguage只在必须解释术语时填写，否则为空字符串；sections为空数组'}。使用日常中文和短句。${safety}${editorialPolicy} 产品不知道开放状态就明确未确认，非产品的availability可空。backgroundReason仅背景需要，普通消息可空。sources最多两项，criticalFacts逐项绑定来源。${attempt?'唯一一次修复：删除重复、无关或无来源内容，不能新增事实。':''}`,userPrompt:JSON.stringify({candidate,previousDraft:attempt?draft:null,issues:problems})});
         problems=eventIssues(draft,candidate,format);
         if(!problems.length) {
           const review=await call({provider:reviewer.provider,model:reviewer.model,apiKey:options.reviewerApiKey || options.apiKey,schemaName:'editorial_review_v2',schema:reviewSchema,maxOutputTokens:1400,systemPrompt:`独立审校这一条成稿。${safety}${editorialPolicy} 比对事实、时间、数字、因果、链接及收录依据。重点确认产品关注/实际使用证据，不以单纯公告代替；检查演示、实测与开放状态。背景有当前价值且不冒充新闻。相同主体的新稿需有不同于已刊内容的实质进展，不能仅热度增长。允许清楚标注条件的分析，不要求分析逐字出现于来源。最多六个具体问题；只有没有blocking且证据充分才passed=true。`,userPrompt:JSON.stringify({candidate,draft})});
@@ -163,4 +180,4 @@ async function generateEdition(candidateResult,options={}) {
   return {briefing:{editorialVersion:2,briefingDate:candidateResult.briefingDate,candidates:retained,thinking:null,categoryCandidateCounts:Object.fromEntries([...new Set(pool.map(c=>c.category))].map(category=>[category,pool.filter(c=>c.category===category).length]))},review:{passed:true,...audit},costs,selectedCandidates:selected};
 }
 
-module.exports={applyBackgroundPolicy,briefTextLength,editorialPolicy,eventIssues,featureTextLength,generateEdition,makeCaller,object,array,string,selectGenerationPool,sourceSchema,factSchema,reviewSchema,screeningIssues,RESOURCE_CODES};
+module.exports={applyBackgroundPolicy,briefTextLength,editorialPolicy,eventIssues,featureTextLength,generateEdition,makeCaller,narrativeOverlap,object,array,string,selectGenerationPool,sourceSchema,factSchema,reviewSchema,screeningIssues,RESOURCE_CODES};
