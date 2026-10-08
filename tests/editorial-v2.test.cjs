@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
 const {applyBackgroundPolicy,eventIssues,generateEdition,screeningIssues,selectGenerationPool}=require('../src/editorial-engine.cjs');
-const {generateThinking,nextThinkingType}=require('../src/business-thinking.cjs');
+const {generateThinking,nextThinkingType,thinkingIssues}=require('../src/business-thinking.cjs');
 const {prepareEditorialCandidates,planEditorialDiscovery}=require('../src/editorial-candidates.cjs');
 const {recordDeliveredEdition,loadEditorialHistory,previousCoverage}=require('../src/editorial-history.cjs');
 const {runEditorialPipeline}=require('../src/pipeline.cjs');
@@ -16,6 +16,7 @@ const proof='The company reported software subscription revenue growth and impro
 function candidate(i=0){return {category:'digital-economy',title:names[i] || '独立材料'+i,publishedAt:'2026-09-27T13:00:00Z',contentKind:'news',relevanceScore:3,contentHash:'content-'+i,sources:[{sourceId:'official',organization:'原始披露',title:'经营数据',url:'https://example.com/story/'+i,tier:'S',kind:'official',isPrimary:true,access:'open',excerpt:proof}]};}
 function decision(c){return {id:c.id,include:true,topic:'business',admission:'material-change',evidenceQuote:proof,evidenceUrl:c.sources[0].url,relevance:'数字商业经营变化',reason:'解释经营机制',backgroundValue:'仍有适用价值',followUpNovelty:'新增经营数据',importance:8};}
 function draft(c,brief=false){return {title:c.title,conclusion:'公司披露订阅业务收入继续增长，并表示客户续费情况较上一阶段改善；这说明经营变化已经发生，但披露没有给出完整客户分层。',plainLanguage:brief?'':'订阅业务是客户按月或按年持续付费使用服务，公司需要不断交付价值才能维持续费。',impact:'如果续费改善来自真实使用增加，并且获客和服务成本没有同步上升，收入会更稳定，经营现金流也可能改善；若只是折扣或合同周期带来的短期变化，这种改善就难以持续。',judgmentBoundary:'以上属于公司披露，材料没有给出不同客户群的续费率、获客成本或服务成本，因此不能据此推断下一期利润，也不能确认它已经形成长期趋势。',sections:brief?[]:[{title:'关键细节',paragraphs:['材料同时说明收入与留存发生变化，但没有披露价格调整、客户数量和单个客户贡献，后续需要用这些数据判断增长来自客户增多、价格提高还是老客户留下。']}],availability:'不适用',evidenceBasis:'公司自报',backgroundReason:'帮助理解数字商业的经营机制',sources:c.sources.map(({organization,title,url})=>({organization,title,url})),criticalFacts:[{claim:'公司披露经营变化',sourceUrls:[c.sources[0].url]}]};}
+function thoughtDraft(source,type='lesson'){return {type,lens:type==='lesson'?'switching-cost':'unit-economics',topicKey:type==='lesson'?'转换成本与续费':'订阅业务单位经济',title:type==='lesson'?'客户续费，未必只是因为满意':'订阅收入增长后，利润为什么可能没有同步增长',conclusion:type==='lesson'?'续费率只有与使用深度、价格变化和迁移成本一起看，才能判断客户留下是因为产品价值，还是因为离开太麻烦。':'订阅业务能否成为好生意，关键不在收入是否增长，而在每增加一元经常性收入需要付出多少获客和服务成本。',paragraphs:['转换成本包括数据迁移、员工重新学习和业务中断风险。它会让不满意的客户也暂时续费，因此高续费率不能单独证明产品体验优秀；若价格上调后使用深度仍提高，价值解释才更有说服力。这类锁定效应能保护收入，却也可能掩盖产品正在失去吸引力。','材料只确认订阅收入与留存发生变化，没有给出客户分层、价格调整或迁移数据。编辑判断是：下一步应把留存拆成主动使用与被动留下，否则公司可能误把退出困难当成产品竞争力。如果公司只奖励续费而不看实际使用，产品团队就可能把资源投向错误方向，甚至延误真正需要的改进。'],question:'如果使用量下降但续费率稳定，你会怎样解释这组数据？',variables:type==='lesson'?[]:['获客成本','服务成本','客户续费贡献'],limits:'结论只用于解释经营机制；材料没有提供客户分层，不能判断具体公司的长期利润。',sources:source.sources,criticalFacts:[{claim:'材料确认订阅收入与客户留存发生变化。',sourceUrls:[source.sources[0].url]}]};}
 function caller(overrides={}){return async opts=>{
  const input=JSON.parse(opts.userPrompt);
  if(overrides[opts.schemaName])return {parsed:await overrides[opts.schemaName](input,opts)};
@@ -96,34 +97,44 @@ test('thinking uses a separate material pool and rotates only after a delivered 
  const state=temp(),history=loadEditorialHistory(state),news=candidate(0),independent={...candidate(1),contentKind:'background'};
  let chosen;
  const result=await generateThinking([news,independent],history,{newsUrls:[news.sources[0].url],callStructured:async opts=>{
- if(opts.schemaName==='business_thinking_review_v2')return {parsed:{passed:true,issues:[]}};
- const input=JSON.parse(opts.userPrompt);chosen=input.materials[0];return {parsed:{type:'explanation',topicKey:'转换成本',title:'续费为何不等于满意',paragraphs:['材料显示订阅留存发生变化。','转换成本也可能影响续费；这是条件分析。'],question:'哪些证据能区分满意与迁移困难？',variables:[],limits:'不能仅凭续费推断原因。',sources:chosen.sources,criticalFacts:[{claim:'经营变化',sourceUrls:[chosen.sources[0].url]}]}};
+ if(opts.schemaName==='business_thinking_review_v3')return {parsed:{passed:true,issues:[]}};
+ const input=JSON.parse(opts.userPrompt);chosen=input.materials[0];return {parsed:thoughtDraft(chosen)};
  }});
  assert.equal(chosen.title,independent.title);assert.equal(result.thinking.reviewed,true);
- assert.equal(nextThinkingType(loadEditorialHistory(state)),'explanation');
+ assert.equal(nextThinkingType(loadEditorialHistory(state)),'lesson');
  recordDeliveredEdition(state,{briefingDate:date,events:[],thinking:result.thinking});
- assert.equal(nextThinkingType(loadEditorialHistory(state)),'exercise');
- assert.match(renderPlainText(runEditorialPipeline({editorialVersion:2,briefingDate:date,candidates:[],thinking:result.thinking})),/续费为何不等于满意/);
+ assert.equal(nextThinkingType(loadEditorialHistory(state)),'teardown');
+ assert.equal(loadEditorialHistory(state).thinking[0].lens,'switching-cost');
+ assert.match(loadEditorialHistory(state).thinking[0].conclusion,/续费率/);
+ assert.match(renderPlainText(runEditorialPipeline({editorialVersion:2,briefingDate:date,candidates:[],thinking:result.thinking})),/客户续费，未必只是因为满意/);
 });
 
 test('thinking is not withheld when review text explicitly says the draft is accurate',async()=>{
  const source=candidate(0);let reviewCalls=0;
  const result=await generateThinking([source],{thinking:[]},{callStructured:async opts=>{
-  if(opts.schemaName==='business_thinking_review_v2'){
+  if(opts.schemaName==='business_thinking_review_v3'){
    reviewCalls++;
    return {parsed:{passed:false,issues:[{severity:'blocking',problem:'The draft matches the source and is accurate. No issue here.'}]}};
   }
-  return {parsed:{type:'explanation',topicKey:'续费机制',title:'续费为何不等于满意',paragraphs:['材料显示订阅留存发生变化。','转换成本也可能影响续费；这是条件分析。'],question:'哪些证据能区分满意与迁移困难？',variables:[],limits:'不能仅凭续费推断原因。',sources:source.sources,criticalFacts:[{claim:'经营变化',sourceUrls:[source.sources[0].url]}]}};
+  return {parsed:thoughtDraft(source)};
  }});
  assert.equal(reviewCalls,1);assert.equal(result.audit.status,'passed');assert.equal(result.thinking.reviewed,true);
 });
 
-test('thinking uses a source-bound fallback after two blocked drafts',async()=>{
+test('thinking refuses a generic fallback after three blocked drafts',async()=>{
  const source=candidate(0);const result=await generateThinking([source],{thinking:[]},{callStructured:async opts=>{
-  if(opts.schemaName==='business_thinking_v2')return {parsed:{type:'explanation',topicKey:'x',title:'x',paragraphs:[],question:'',variables:[],limits:'',sources:[],criticalFacts:[]}};
+  if(opts.schemaName==='business_thinking_v3')return {parsed:{type:'lesson',lens:'customer-value',topicKey:'x',title:'x',conclusion:'',paragraphs:[],question:'',variables:[],limits:'',sources:[],criticalFacts:[]}};
   throw Error('invalid draft should not reach review');
  }});
- assert.equal(result.audit.status,'fallback');assert.equal(result.thinking.reviewed,true);assert.equal(result.thinking.sources[0].url,source.sources[0].url);assert.match(result.thinking.limits,/保底判断框架/);
+ assert.equal(result.audit.status,'review-blocked');assert.equal(result.thinking,null);assert.equal(result.audit.attempts.length,3);assert.match(result.audit.reason,/拒绝用换标题/);
+});
+
+test('thinking rejects the old trial-and-metrics core and recently used semantic lens',()=>{
+ const source=candidate(0),draft={...thoughtDraft(source),lens:'customer-value',conclusion:'先做一个小范围试点，再看真实使用频率和错误率，最后决定要不要扩大投入。'};
+ const issues=thinkingIssues(draft,[source],{thinking:[{lens:'customer-value',topicKey:'其他标题',title:'表面不同',conclusion:'另一种说法',sentAt:'2026-09-27T00:00:00Z'}]},'lesson');
+ assert.match(issues.join(' '),/同一商业机制分类/);assert.match(issues.join(' '),/通用的试点验证框架/);
+ const specific=thoughtDraft(source),semanticIssues=thinkingIssues(specific,[source],{thinking:[{lens:'pricing',topicKey:'不同机制名',title:'完全不同的标题',conclusion:specific.conclusion,sentAt:'2026-09-27T00:00:00Z'}]},'lesson');
+ assert.match(semanticIssues.join(' '),/核心结论重复/);
 });
 
 test('screening backlog survives scans without being marked attempted or losing original dates',()=>{

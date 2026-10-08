@@ -166,7 +166,13 @@ function renderArticle(event, eventNumber) {
 
 function renderThinking(thinking) {
   if (!thinking) return '';
-  if (thinking.type) return `<aside class="thinking"><div class="thinking-label">三分钟商业思考 · ${thinking.type === 'explanation' ? '机制讲解' : '案例练习'}</div><div class="thinking-title">${escapeHtml(thinking.title)}</div>${(thinking.paragraphs || []).map(p=>`<p>${escapeHtml(p)}</p>`).join('')}<p><strong>想一想：</strong>${escapeHtml(thinking.question)}</p>${(thinking.variables || []).length ? `<p>观察条件：${escapeHtml(thinking.variables.join('；'))}</p>` : ''}<p class="meta">${escapeHtml(thinking.limits)}</p>${renderSources(thinking.sources || [])}</aside>`;
+  if (thinking.type) {
+    const label=thinking.type==='lesson'?'讲懂一个机制':thinking.type==='teardown'?'拆一笔具体生意':thinking.type==='explanation'?'机制讲解':'案例练习';
+    const conclusion=thinking.conclusion?`<p class="thinking-conclusion"><strong>我的结论：</strong>${escapeHtml(thinking.conclusion)}</p>`:'';
+    const question=thinking.question?`<p><strong>再想一步：</strong>${escapeHtml(thinking.question)}</p>`:'';
+    const variables=(thinking.variables || []).length?`<p><strong>这笔生意要看：</strong>${escapeHtml(thinking.variables.join('；'))}</p>`:'';
+    return `<aside class="thinking"><div class="thinking-label">三分钟商业思考 · ${label}</div><div class="thinking-title">${escapeHtml(thinking.title)}</div>${conclusion}${(thinking.paragraphs || []).map(p=>`<p>${escapeHtml(p)}</p>`).join('')}${variables}${question}<p class="meta">${escapeHtml(thinking.limits)}</p>${renderSources(thinking.sources || [])}</aside>`;
+  }
   const scenario = thinking.scenario ? `<p><strong>你的角色：</strong>${escapeHtml(thinking.scenario)}</p>` : '';
   const question = thinking.decisionQuestion ? `<p><strong>决策题：</strong>${escapeHtml(thinking.decisionQuestion)}</p>` : '';
   const options = Array.isArray(thinking.options) && thinking.options.length > 0
@@ -264,6 +270,7 @@ function renderHtml(result, config = PROJECT_CONFIG) {
     .thinking-label { color:#c7c7cc; font-size:12px; line-height:1.4; letter-spacing:.08em; }
     .thinking-title { margin:5px 0 0; color:#fff; font-size:18px; line-height:1.5; font-weight:730; }
     .thinking p { color:#e8eef6; font-size:15px; line-height:1.75; }
+    .thinking .thinking-conclusion { margin-top:13px; padding:12px 14px; color:#fff; background:#3a3a3c; border-radius:9px; }
     .thinking-options,.thinking-checks ul { margin:10px 0; padding-left:21px; color:#e8eef6; font-size:15px; line-height:1.75; }
     .thinking-checks { margin-top:12px; color:#e8eef6; font-size:15px; }
     .category-empty { margin:18px 0 3px; color:#607184; font-size:15px; }
@@ -410,7 +417,13 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
 
   const thinking = result.thinking || (result.editorialVersion === 2 ? null : coverage.fallbackThinking);
   if (thinking?.type) {
-    lines.push(`三分钟商业思考 · ${thinking.type === 'explanation' ? '机制讲解' : '案例练习'}`,thinking.title,...thinking.paragraphs,`想一想：${thinking.question}`,`观察条件：${thinking.variables.join('；')}`,thinking.limits,...thinking.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]));
+    const label=thinking.type==='lesson'?'讲懂一个机制':thinking.type==='teardown'?'拆一笔具体生意':thinking.type==='explanation'?'机制讲解':'案例练习';
+    lines.push(`三分钟商业思考 · ${label}`,thinking.title);
+    if(thinking.conclusion)lines.push(`我的结论：${thinking.conclusion}`);
+    lines.push(...thinking.paragraphs);
+    if((thinking.variables || []).length)lines.push(`这笔生意要看：${thinking.variables.join('；')}`);
+    if(thinking.question)lines.push(`再想一步：${thinking.question}`);
+    lines.push(thinking.limits,...thinking.sources.flatMap(s=>[`${s.organization}｜${s.title}`,s.url]));
     return lines.join('\r\n').trim()+'\r\n';
   }
   if (result.editorialVersion === 2 && !thinking) lines.push('本期商业思考暂无通过核查的内容。');

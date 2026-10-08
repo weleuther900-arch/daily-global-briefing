@@ -29,7 +29,7 @@ function recordDeliveredEdition(stateDirectory, result, sentAt = new Date().toIS
     if (!history.events.some(e=>e.identity===identity && e.edition===result.briefingDate)) history.events.push({identity,edition:result.briefingDate,fingerprint:event.fingerprint,title:event.title,originalTitle:event.originalTitle,urls:urlsOf(event),publishedAt:event.publishedAt,contentHash:event.contentHash || null,contentKind:event.contentKind || 'news',sentAt});
   }
   const t=result.thinking;
-  if (t?.type && t.topicKey && !history.thinking.some(x=>x.edition===result.briefingDate)) history.thinking.push({edition:result.briefingDate,type:t.type,topicKey:t.topicKey,title:t.title,urls:urlsOf(t),sentAt});
+  if (t?.type && t.topicKey && !history.thinking.some(x=>x.edition===result.briefingDate)) history.thinking.push({edition:result.briefingDate,type:t.type,lens:t.lens || null,topicKey:t.topicKey,title:t.title,conclusion:t.conclusion || null,urls:urlsOf(t),sentAt});
   writeJsonAtomic(path.join(stateDirectory,'editorial-history.json'),{...history,updatedAt:sentAt});
   return history;
 }
