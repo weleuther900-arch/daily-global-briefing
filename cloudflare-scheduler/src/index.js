@@ -2,8 +2,24 @@ const WORKFLOW_FILE = 'daily-briefing.yml';
 const BRANCH = 'main';
 const USER_AGENT = 'daily-global-briefing-cloudflare-scheduler';
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+// Cloudflare Workers uses SUN/1-7 for the weekday field (not the usual 0-6).
+const WEEKLY_CASE_CRON = '5 0 * * SUN';
 
-export function createDispatchRequest(env) {
+export function isWeeklyCaseExecution(cron, scheduledTime) {
+  if (cron !== WEEKLY_CASE_CRON || !Number.isFinite(Number(scheduledTime))) return false;
+  const beijing = new Date(Number(scheduledTime) + 8 * 60 * 60 * 1000);
+  return beijing.getUTCDay() === 0 && beijing.getUTCHours() === 8 && beijing.getUTCMinutes() === 5;
+}
+
+function dispatchInputs(cron, scheduledTime) {
+  if (cron === WEEKLY_CASE_CRON) {
+    if (!isWeeklyCaseExecution(cron, scheduledTime)) return null;
+    return { mode: 'case', allow_send: 'true', trigger_source: 'cloudflare-weekly-case' };
+  }
+  return { mode: 'final', allow_send: 'true', trigger_source: 'cloudflare-cron' };
+}
+
+export function createDispatchRequest(env, cron, scheduledTime) {
   const repository = String(env?.GITHUB_REPOSITORY || '').trim();
   const token = String(env?.GITHUB_DISPATCH_TOKEN || '').trim();
   if (!REPOSITORY_PATTERN.test(repository)) {
@@ -12,6 +28,9 @@ export function createDispatchRequest(env) {
   if (!token) {
     throw new Error('GITHUB_DISPATCH_TOKEN is not configured.');
   }
+
+  const inputs = dispatchInputs(cron, scheduledTime);
+  if (!inputs) return null;
 
   return {
     url: `https://api.github.com/repos/${repository}/actions/workflows/${WORKFLOW_FILE}/dispatches`,
@@ -26,18 +45,15 @@ export function createDispatchRequest(env) {
       },
       body: JSON.stringify({
         ref: BRANCH,
-        inputs: {
-          mode: 'final',
-          allow_send: 'true',
-          trigger_source: 'cloudflare-cron'
-        }
+        inputs
       })
     }
   };
 }
 
-export async function dispatchMorningBriefing(env, fetchImpl = fetch) {
-  const request = createDispatchRequest(env);
+export async function dispatchMorningBriefing(env, fetchImpl = fetch, cron, scheduledTime) {
+  const request = createDispatchRequest(env, cron, scheduledTime);
+  if (!request) return null;
   const response = await fetchImpl(request.url, request.init);
   if (!response.ok) {
     const details = (await response.text()).trim().replace(/\s+/g, ' ').slice(0, 300);
@@ -49,9 +65,9 @@ export async function dispatchMorningBriefing(env, fetchImpl = fetch) {
 
 export default {
   async scheduled(controller, env) {
-    const status = await dispatchMorningBriefing(env);
+    const status = await dispatchMorningBriefing(env, fetch, controller.cron, controller.scheduledTime);
     console.log(JSON.stringify({
-      event: 'github-workflow-dispatch-accepted',
+      event: status ? 'github-workflow-dispatch-accepted' : 'schedule-time-mismatch',
       cron: controller.cron,
       status,
       scheduledTime: new Date(controller.scheduledTime).toISOString()

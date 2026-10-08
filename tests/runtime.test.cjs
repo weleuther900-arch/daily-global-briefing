@@ -56,13 +56,15 @@ test('模型调用仅允许在北京时间23:00至08:30', () => {
   assert.equal(isModelInvocationAllowed(new Date('2026-08-27T00:31:00Z')), false); // 08:31
 });
 
-test('周日商业案例允许固定目标之后的受限补跑窗口', () => {
-  const sundayTwenty = new Date('2026-09-06T12:00:00Z');
-  const sundayLate = new Date('2026-09-06T13:01:00Z');
-  assert.equal(isWeeklyCaseInvocationAllowed(sundayTwenty), true);
-  assert.equal(isWeeklyCaseInvocationAllowed(sundayLate), true);
-  assert.doesNotThrow(() => assertModelInvocationAllowed(sundayTwenty, { allowWeeklyCase: true }));
-  assert.throws(() => assertModelInvocationAllowed(sundayTwenty));
+test('周日商业案例只在早间目标与受限补跑窗口运行', () => {
+  const sundayMorning = new Date('2026-09-05T23:30:00Z');
+  const sundayRecovery = new Date('2026-09-06T02:30:00Z');
+  assert.equal(isWeeklyCaseInvocationAllowed(sundayMorning), true);
+  assert.equal(isWeeklyCaseInvocationAllowed(sundayRecovery), true);
+  assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-06T03:01:00Z')), false);
+  assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-06T12:00:00Z')), false);
+  assert.doesNotThrow(() => assertModelInvocationAllowed(sundayRecovery, { allowWeeklyCase: true }));
+  assert.throws(() => assertModelInvocationAllowed(sundayRecovery));
   assert.doesNotThrow(() => assertModelInvocationAllowed(new Date('2026-09-30T03:00:00Z'), { allowAuthorizedRecovery: true }));
 });
 
@@ -136,7 +138,7 @@ test('周日案例没有素材时受控停止，不让工作流以异常失败',
   fs.mkdirSync(path.join(root, 'config'), { recursive: true });
   fs.mkdirSync(path.join(root, 'state'), { recursive: true });
   fs.writeFileSync(path.join(root, 'config', 'sources.v1.json'), JSON.stringify({ sources: [], coverageGroups: [] }));
-  const result = await runDaily({ root, mode: 'case', now: new Date('2026-09-06T12:00:00Z') });
+  const result = await runDaily({ root, mode: 'case', now: new Date('2026-09-06T00:05:00Z') });
   assert.equal(result.status, 'content-stopped');
   assert.equal(result.sent, false);
 });

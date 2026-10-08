@@ -14,13 +14,13 @@ function isModelInvocationAllowed(now = new Date()) {
   return minute >= 23 * 60 || minute <= 8 * 60 + 30;
 }
 
-// 周日商业案例是用户明确要求在北京时间20:00单独投递的固定内容。仅为
-// 该运行模式允许补跑到周一08:30，容纳调度排队。日报门禁不受影响。
+// 周日商业案例以北京时间08:05为主触发，目标在09:00前送达。仅为该运行
+// 模式保留周日07:30至11:00的受限补跑窗口，以容纳云端排队和备用任务；
+// 日报及其他任务的模型门禁不受影响。
 function isWeeklyCaseInvocationAllowed(now = new Date()) {
   const beijing = new Date(new Date(now).getTime() + 8 * 60 * 60 * 1000);
   const minute = beijingMinuteOfDay(now);
-  return (beijing.getUTCDay() === 0 && minute >= 20 * 60)
-    || (beijing.getUTCDay() === 1 && minute <= 8 * 60 + 30);
+  return beijing.getUTCDay() === 0 && minute >= 7 * 60 + 30 && minute <= 11 * 60;
 }
 
 function weeklyCaseDate(now = new Date()) {
