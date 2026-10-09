@@ -121,6 +121,18 @@ test('thinking is not withheld when review text explicitly says the draft is acc
  assert.equal(reviewCalls,1);assert.equal(result.audit.status,'passed');assert.equal(result.thinking.reviewed,true);
 });
 
+test('thinking keeps a locally distinct mechanism when review only asserts an unquoted historical repeat',async()=>{
+ const source=candidate(0);let reviewCalls=0;
+ const result=await generateThinking([source],{thinking:[]},{callStructured:async opts=>{
+  if(opts.schemaName==='business_thinking_review_v3'){
+   reviewCalls++;
+   return {parsed:{passed:false,issues:[{severity:'blocking',problem:'这篇稿件与历史栏目内在观点重复，仍是通用的试点验证框架。'}]}};
+  }
+  return {parsed:thoughtDraft(source)};
+ }});
+ assert.equal(reviewCalls,1);assert.equal(result.audit.status,'passed');assert.equal(result.thinking.reviewed,true);
+});
+
 test('thinking refuses a generic fallback after three blocked drafts',async()=>{
  const source=candidate(0);const result=await generateThinking([source],{thinking:[]},{callStructured:async opts=>{
   if(opts.schemaName==='business_thinking_v3')return {parsed:{type:'lesson',lens:'customer-value',topicKey:'x',title:'x',conclusion:'',paragraphs:[],question:'',variables:[],limits:'',sources:[],criticalFacts:[]}};

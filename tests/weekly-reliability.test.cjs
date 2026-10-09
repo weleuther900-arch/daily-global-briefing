@@ -9,7 +9,7 @@ const { normalizeReview } = require('../src/case-review.cjs');
 const { runDaily, selectWeeklyCaseMaterialGroups } = require('../src/runtime.cjs');
 const { weeklyCaseDate, isWeeklyCaseInvocationAllowed } = require('../src/model-window.cjs');
 
-const now = new Date('2026-09-20T00:05:00Z');
+const now = new Date('2026-09-19T22:00:00Z');
 const sources = ['microsoft-official-blog', 'nvidia-newsroom'];
 const details = { items: sources.flatMap((sourceId, entity) => Array.from({length:3}, (_,i) => ({
   sourceId, sourceName: sourceId, title: '公开经营材料'+i, url:`https://example.com/${entity}/${i}`,
@@ -30,9 +30,9 @@ function fixture() {
 }
 
 test('周日早间案例保持当日期次，超出补跑窗口后停止',()=>{
-  assert.equal(weeklyCaseDate(new Date('2026-09-20T00:05:00Z')),'2026-09-20');
-  assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-20T00:05:00Z')),true);
-  assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-20T03:01:00Z')),false);
+  assert.equal(weeklyCaseDate(new Date('2026-09-19T22:00:00Z')),'2026-09-20');
+  assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-19T22:00:00Z')),true);
+  assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-20T00:31:00Z')),false);
   assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-20T12:00:00Z')),false);
   assert.equal(isWeeklyCaseInvocationAllowed(new Date('2026-09-22T12:00:00Z')),false);
 });
@@ -126,7 +126,7 @@ test('首个选题被拒绝时换第二个选题，成功后跨日重试不会�
   services.sendWithRetry=async()=>{sends++;return {status:250,attempts:1};};
   const first=await runDaily({root,mode:'case',now,send:true,caseServices:services});
   assert.equal(first.sent,true); assert.equal(generations,2);
-  const again=await runDaily({root,mode:'case',runId:'other-trigger',now:new Date('2026-09-20T00:20:00Z'),send:true,caseServices:services});
+  const again=await runDaily({root,mode:'case',runId:'other-trigger',now:new Date('2026-09-19T22:15:00Z'),send:true,caseServices:services});
   assert.equal(again.idempotentSkip,true); assert.equal(sends,1); assert.equal(generations,2);
 });
 
@@ -136,7 +136,7 @@ test('SMTP失败后保留已审稿件，备用运行直接复用而不重新调�
   services.generateBusinessCase=async m=>{generations++;return generate(m);};
   services.sendWithRetry=async()=>{sends++;if(sends===1)throw Error('SMTP temporary failure');return {status:250,attempts:1};};
   await assert.rejects(runDaily({root,mode:'case',now,send:true,caseServices:services}),/SMTP temporary/);
-  const result=await runDaily({root,mode:'case',now:new Date('2026-09-20T00:50:00Z'),send:true,caseServices:services});
+  const result=await runDaily({root,mode:'case',now:new Date('2026-09-19T22:30:00Z'),send:true,caseServices:services});
   assert.equal(result.sent,true); assert.equal(result.reusedReviewedDraft,true); assert.equal(generations,1);
 });
 
@@ -146,7 +146,7 @@ test('备用任务跳过本周已失败的相同材料，避免重复花费模�
   services.generateBusinessCase=async()=>{generations++;const e=Error('事实未通过');e.code='CASE_REVIEW_BLOCKED';throw e;};
   const first=await runDaily({root,mode:'case',now,send:false,caseServices:services});
   assert.equal(first.status,'case-review-stopped');assert.equal(generations,2);
-  const second=await runDaily({root,mode:'case',now:new Date('2026-09-20T00:50:00Z'),send:false,caseServices:services});
+  const second=await runDaily({root,mode:'case',now:new Date('2026-09-19T22:30:00Z'),send:false,caseServices:services});
   assert.equal(second.status,'case-review-stopped');assert.equal(generations,2);
   assert.ok(!fs.existsSync(path.join(root,'state/business-case-history.json')));
 });

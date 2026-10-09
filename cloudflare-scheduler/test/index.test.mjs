@@ -21,15 +21,15 @@ test('构造仅能触发正式晨报的 GitHub workflow_dispatch 请求', () => 
   });
 });
 
-test('周日08:05案例由 Cloudflare 派发，非该时刻不会创建请求', () => {
-  const scheduled = Date.parse('2026-09-06T00:05:00Z');
-  const request = createDispatchRequest(environment, '5 0 * * SUN', scheduled);
+test('北京时间周日06:00案例由 Cloudflare 派发，非该时刻不会创建请求', () => {
+  const scheduled = Date.parse('2026-09-05T22:00:00Z');
+  const request = createDispatchRequest(environment, '0 22 * * SAT', scheduled);
   assert.deepEqual(JSON.parse(request.init.body), {
     ref: 'main',
     inputs: { mode: 'case', allow_send: 'true', trigger_source: 'cloudflare-weekly-case' }
   });
-  assert.equal(isWeeklyCaseExecution('5 0 * * SUN', scheduled), true);
-  assert.equal(createDispatchRequest(environment, '5 0 * * SUN', Date.parse('2026-09-06T00:06:00Z')), null);
+  assert.equal(isWeeklyCaseExecution('0 22 * * SAT', scheduled), true);
+  assert.equal(createDispatchRequest(environment, '0 22 * * SAT', Date.parse('2026-09-05T22:01:00Z')), null);
 });
 
 test('接受任意 2xx 的 GitHub workflow_dispatch 回执', async () => {

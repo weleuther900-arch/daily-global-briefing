@@ -3,12 +3,12 @@ const BRANCH = 'main';
 const USER_AGENT = 'daily-global-briefing-cloudflare-scheduler';
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // Cloudflare Workers uses SUN/1-7 for the weekday field (not the usual 0-6).
-const WEEKLY_CASE_CRON = '5 0 * * SUN';
+const WEEKLY_CASE_CRON = '0 22 * * SAT';
 
 export function isWeeklyCaseExecution(cron, scheduledTime) {
   if (cron !== WEEKLY_CASE_CRON || !Number.isFinite(Number(scheduledTime))) return false;
   const beijing = new Date(Number(scheduledTime) + 8 * 60 * 60 * 1000);
-  return beijing.getUTCDay() === 0 && beijing.getUTCHours() === 8 && beijing.getUTCMinutes() === 5;
+  return beijing.getUTCDay() === 0 && beijing.getUTCHours() === 6 && beijing.getUTCMinutes() === 0;
 }
 
 function dispatchInputs(cron, scheduledTime) {

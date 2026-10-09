@@ -4,9 +4,9 @@ on:
   schedule:
     # Cloudflare 为主触发；07:50 的 GitHub schedule 只在 Cloudflare 派发失败时兜底。
     - cron: '50 23 * * *'
-    # 以下为巡检和周日08:20的商业案例备用触发。
+    # 以下为巡检和北京时间周日06:15的商业案例备用触发。
     - cron: '23 7 * * *'
-    - cron: '20 0 * * 0'
+    - cron: '15 22 * * 6'
   workflow_dispatch:
     inputs:
       mode:
@@ -100,7 +100,7 @@ jobs:
             echo "manual_send=true" >> "$GITHUB_OUTPUT"
             echo "trigger_source=github-schedule-fallback" >> "$GITHUB_OUTPUT"
             echo "require_morning_readiness=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event.schedule }}" = "20 0 * * 0" ]; then
+          elif [ "${{ github.event.schedule }}" = "15 22 * * 6" ]; then
             echo "mode=case" >> "$GITHUB_OUTPUT"
             echo "date=" >> "$GITHUB_OUTPUT"
             echo "source_run_id=" >> "$GITHUB_OUTPUT"

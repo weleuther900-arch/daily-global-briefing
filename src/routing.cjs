@@ -13,11 +13,11 @@ const KEYWORDS = Object.freeze({
   ai: [
     '人工智能', '大模型', '模型', '推理', '训练', '智能体', '多模态', '算力', 'gpu', 'ai ', ' ai',
     'artificial intelligence', 'machine learning', 'foundation model', 'inference', 'agentic', 'llm', 'nvidia',
-    'openai', 'anthropic', 'deepmind', 'gemini', 'claude', 'grok', 'deepseek', 'qwen', '芯片'
+    'openai', 'anthropic', 'deepmind', 'gemini', 'claude', 'grok', 'deepseek', 'qwen'
   ],
   'digital-economy': [
     '数字经济', '云计算', '数据中心', '半导体', '芯片', '电商', '平台经济', '支付', '金融科技',
-    '网络安全', '软件供应链', '卫星互联网', '数字贸易', '数字基础设施', 'cloud', 'semiconductor',
+    '网络安全', '软件供应链', '卫星互联网', '数字贸易', '数字基础设施', '数据泄露', '个人数据', '黑客攻击', '芯片内存', '存储芯片', '云计算', 'cloud', 'semiconductor', 'memory chip', 'hbm', 'data breach', 'cyber attack',
     'software', 'subscription', 'revenue', 'earnings', 'operating margin', 'monetization', '财报', '订阅', '营收', '商业模式', '客户留存', 'cybersecurity', 'fintech', 'e-commerce', 'data center', 'digital market', 'digital services'
   ],
   'china-economy-policy': [
@@ -27,7 +27,7 @@ const KEYWORDS = Object.freeze({
   'global-economy-politics': [
     '美联储', '联邦公报', '欧盟', '欧洲委员会', '关税', '制裁', '出口管制', '利率', '通胀', '就业',
     'gdp', 'federal reserve', 'federal register', 'export control', 'tariff', 'sanction', 'inflation',
-    'employment', 'monetary policy', 'competition regulation', 'trade policy',
+    'employment', 'monetary policy', 'competition regulation', 'trade policy', 'white house', 'work visa', 'work permit', 'visa program', 'labor policy', 'h-1b', 'hiring program', '白宫', '工作签证', '用工政策', '招聘政策',
     '国防', '防务', '军事工业', '军工', '弹药', '导弹', '武器', '军火', '战略储备', '弹药库存',
     '国防部', '五角大楼', '国防采购', '国防工业基础', 'industrial base', 'ammunition', 'munitions',
     'defense procurement', 'department of defense', 'pentagon', 'military'
@@ -108,6 +108,14 @@ function routeCategory(detail) {
   for (const topic of detail.topics || []) {
     if (Object.hasOwn(scores, topic) && directScores[topic] > 0) scores[topic] += 1;
   }
+  // AI is often the reason a story is in the briefing, but it is not the
+  // business category of every AI-adjacent item.  Hardware economics,
+  // platform security and data incidents belong to digital business; hiring,
+  // visa and trade decisions belong to the policy lane when they affect tech.
+  const decisivePolicy=keywordHits(text, ['white house', 'work visa', 'work permit', 'visa program', 'labor policy', 'h-1b', 'hiring program', '白宫', '工作签证', '用工政策', '招聘政策', '出口管制', '关税', '制裁']).length>0;
+  if (decisivePolicy && directScores['global-economy-politics']>0) return ['global-economy-politics', scores['global-economy-politics'], directScores['global-economy-politics']];
+  const decisiveDigital=keywordHits(text, ['semiconductor', 'memory chip', 'hbm', 'data breach', 'cyber attack', '数据泄露', '个人数据', '黑客攻击', '芯片内存', '存储芯片']).length>0;
+  if (decisiveDigital && directScores['digital-economy']>0) return ['digital-economy', scores['digital-economy'], directScores['digital-economy']];
   const [category, score] = Object.entries(scores).sort((left, right) => right[1] - left[1])[0];
   return [category, score, directScores[category]];
 }

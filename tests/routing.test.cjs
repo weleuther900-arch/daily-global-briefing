@@ -85,6 +85,27 @@ test('国防采购与弹药库存归入全球经济与政治，不进入开源�
   assert.equal(prepareModelCandidates({ items: [defense] }, '2026-08-17').candidates[0].category, 'global-economy-politics');
 });
 
+test('AI 相邻的芯片、数据安全和科技用工政策保留各自的商业栏目', () => {
+  const semiconductor = detail({
+    title: '三星受AI数据中心需求带动，存储芯片利润上升',
+    text: '公司称 AI 数据中心需求推动 HBM memory chip 和 semiconductor 销售增长，本季度 earnings 改善。',
+    url: 'https://example.com/chips'
+  });
+  const breach = detail({
+    title: '电商平台披露客户数据泄露',
+    text: '该 e-commerce 平台确认 data breach，部分个人数据受到影响，正在调查 cyber attack。',
+    url: 'https://example.com/breach'
+  });
+  const visa = detail({
+    title: 'White House changes work visa hiring program for technology companies',
+    text: 'The White House said the work visa hiring program changes could affect employment and hiring at technology companies.',
+    url: 'https://example.com/visa'
+  });
+  assert.equal(routeCategory(semiconductor)[0], 'digital-economy');
+  assert.equal(routeCategory(breach)[0], 'digital-economy');
+  assert.equal(routeCategory(visa)[0], 'global-economy-politics');
+});
+
 test('证据摘录跳过短导航块并保留正文中的可核验事实', () => {
   const text = ['Home', 'News', 'Search', '投资者关系', '该公司于2026年9月6日发布正式公告，披露本季度收入增长、产品部署范围和后续实施安排，供外部读者核验。'].join('\n');
   const excerpt = selectEvidenceExcerpt(text);

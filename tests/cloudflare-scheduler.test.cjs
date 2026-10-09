@@ -24,11 +24,11 @@ test('Cloudflare 调度器派发正式晨报并带可审计来源标记', async 
     trigger_source: 'cloudflare-cron'
   });
 
-  const sunday = Date.parse('2026-09-06T00:05:00Z');
+  const sunday = Date.parse('2026-09-05T22:00:00Z');
   const weekly = createDispatchRequest({
     GITHUB_REPOSITORY: 'weleuther900-arch/daily-global-briefing-private',
     GITHUB_DISPATCH_TOKEN: 'test-token'
-  }, '5 0 * * SUN', sunday);
+  }, '0 22 * * SAT', sunday);
   assert.deepEqual(JSON.parse(weekly.init.body).inputs, {
     mode: 'case',
     allow_send: 'true',
@@ -47,7 +47,7 @@ test('Cloudflare 为主触发，GitHub 在晨间窗口内保留一次无重复�
   assert.match(workflow, /trigger_source:/);
   assert.match(config, /"5 23 \* \* \*"/);
   assert.match(config, /"35 23 \* \* \*"/);
-  assert.match(config, /"5 0 \* \* SUN"/);
-  assert.match(workflow, /- cron: '20 0 \* \* 0'/);
+  assert.match(config, /"0 22 \* \* SAT"/);
+  assert.match(workflow, /- cron: '15 22 \* \* 6'/);
   assert.match(config, /"required"\s*:\s*\[\s*"GITHUB_DISPATCH_TOKEN"/);
 });
