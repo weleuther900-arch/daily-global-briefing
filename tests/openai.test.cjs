@@ -57,6 +57,13 @@ test('窗口外模型调用不会连接服务商', async () => {
   assert.equal(requested, false);
 });
 
+test('商业思考使用紧凑JSON契约，避免把完整Schema送入DeepSeek', () => {
+  const instruction = deepSeekFormatInstruction('business_thinking_v3', { type: 'object', properties: { veryLong: { type: 'string' } } });
+  assert.match(instruction, /takeaway、keyTerm、plainExplanation/);
+  assert.match(instruction, /不要输出输入材料/);
+  assert.doesNotMatch(instruction, /JSON Schema/);
+});
+
 test('生成来源按候选URL继承已验证的公开访问元数据', () => {
   const event = normalizeGeneratedEvent({
     sources: [{ organization: '机构', title: '中文标题', url: 'https://example.com/open', access: 'paid', tier: 'C', isPrimary: false }]

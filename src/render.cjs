@@ -169,9 +169,11 @@ function renderThinking(thinking) {
   if (thinking.type) {
     const label=thinking.type==='lesson'?'讲懂一个机制':thinking.type==='teardown'?'拆一笔具体生意':thinking.type==='explanation'?'机制讲解':'案例练习';
     const conclusion=thinking.conclusion?`<p class="thinking-conclusion"><strong>我的结论：</strong>${escapeHtml(thinking.conclusion)}</p>`:'';
+    const takeaway=thinking.takeaway?`<p><strong>你能学到：</strong>${escapeHtml(thinking.takeaway)}</p>`:'';
+    const plainExplanation=thinking.plainExplanation?`<p><strong>${escapeHtml(thinking.keyTerm || '大白话')}：</strong>${escapeHtml(thinking.plainExplanation)}</p>`:'';
     const question=thinking.question?`<p><strong>再想一步：</strong>${escapeHtml(thinking.question)}</p>`:'';
     const variables=(thinking.variables || []).length?`<p><strong>这笔生意要看：</strong>${escapeHtml(thinking.variables.join('；'))}</p>`:'';
-    return `<aside class="thinking"><div class="thinking-label">三分钟商业思考 · ${label}</div><div class="thinking-title">${escapeHtml(thinking.title)}</div>${conclusion}${(thinking.paragraphs || []).map(p=>`<p>${escapeHtml(p)}</p>`).join('')}${variables}${question}<p class="meta">${escapeHtml(thinking.limits)}</p>${renderSources(thinking.sources || [])}</aside>`;
+    return `<aside class="thinking"><div class="thinking-label">三分钟商业思考 · ${label}</div><div class="thinking-title">${escapeHtml(thinking.title)}</div>${conclusion}${takeaway}${plainExplanation}${(thinking.paragraphs || []).map(p=>`<p>${escapeHtml(p)}</p>`).join('')}${variables}${question}<p class="meta">${escapeHtml(thinking.limits)}</p>${renderSources(thinking.sources || [])}</aside>`;
   }
   const scenario = thinking.scenario ? `<p><strong>你的角色：</strong>${escapeHtml(thinking.scenario)}</p>` : '';
   const question = thinking.decisionQuestion ? `<p><strong>决策题：</strong>${escapeHtml(thinking.decisionQuestion)}</p>` : '';
@@ -420,6 +422,8 @@ function renderPlainText(result, config = PROJECT_CONFIG) {
     const label=thinking.type==='lesson'?'讲懂一个机制':thinking.type==='teardown'?'拆一笔具体生意':thinking.type==='explanation'?'机制讲解':'案例练习';
     lines.push(`三分钟商业思考 · ${label}`,thinking.title);
     if(thinking.conclusion)lines.push(`我的结论：${thinking.conclusion}`);
+    if(thinking.takeaway)lines.push(`你能学到：${thinking.takeaway}`);
+    if(thinking.plainExplanation)lines.push(`${thinking.keyTerm || '大白话'}：${thinking.plainExplanation}`);
     lines.push(...thinking.paragraphs);
     if((thinking.variables || []).length)lines.push(`这笔生意要看：${thinking.variables.join('；')}`);
     if(thinking.question)lines.push(`再想一步：${thinking.question}`);

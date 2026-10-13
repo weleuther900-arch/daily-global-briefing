@@ -16,7 +16,7 @@ const proof='The company reported software subscription revenue growth and impro
 function candidate(i=0){return {category:'digital-economy',title:names[i] || '独立材料'+i,publishedAt:'2026-09-27T13:00:00Z',contentKind:'news',relevanceScore:3,contentHash:'content-'+i,sources:[{sourceId:'official',organization:'原始披露',title:'经营数据',url:'https://example.com/story/'+i,tier:'S',kind:'official',isPrimary:true,access:'open',excerpt:proof}]};}
 function decision(c){return {id:c.id,include:true,topic:'business',admission:'material-change',evidenceQuote:proof,evidenceUrl:c.sources[0].url,relevance:'数字商业经营变化',reason:'解释经营机制',backgroundValue:'仍有适用价值',followUpNovelty:'新增经营数据',importance:8};}
 function draft(c,brief=false){return {title:c.title,conclusion:'公司披露订阅业务收入继续增长，并表示客户续费情况较上一阶段改善；这说明经营变化已经发生，但披露没有给出完整客户分层。',plainLanguage:brief?'':'订阅业务是客户按月或按年持续付费使用服务，公司需要不断交付价值才能维持续费。',impact:'如果续费改善来自真实使用增加，并且获客和服务成本没有同步上升，收入会更稳定，经营现金流也可能改善；若只是折扣或合同周期带来的短期变化，这种改善就难以持续。',judgmentBoundary:'以上属于公司披露，材料没有给出不同客户群的续费率、获客成本或服务成本，因此不能据此推断下一期利润，也不能确认它已经形成长期趋势。',sections:brief?[]:[{title:'关键细节',paragraphs:['材料同时说明收入与留存发生变化，但没有披露价格调整、客户数量和单个客户贡献，后续需要用这些数据判断增长来自客户增多、价格提高还是老客户留下。']}],availability:'不适用',evidenceBasis:'公司自报',backgroundReason:'帮助理解数字商业的经营机制',sources:c.sources.map(({organization,title,url})=>({organization,title,url})),criticalFacts:[{claim:'公司披露经营变化',sourceUrls:[c.sources[0].url]}]};}
-function thoughtDraft(source,type='lesson'){return {type,lens:type==='lesson'?'switching-cost':'unit-economics',topicKey:type==='lesson'?'转换成本与续费':'订阅业务单位经济',title:type==='lesson'?'客户续费，未必只是因为满意':'订阅收入增长后，利润为什么可能没有同步增长',conclusion:type==='lesson'?'续费率只有与使用深度、价格变化和迁移成本一起看，才能判断客户留下是因为产品价值，还是因为离开太麻烦。':'订阅业务能否成为好生意，关键不在收入是否增长，而在每增加一元经常性收入需要付出多少获客和服务成本。',paragraphs:['转换成本包括数据迁移、员工重新学习和业务中断风险。它会让不满意的客户也暂时续费，因此高续费率不能单独证明产品体验优秀；若价格上调后使用深度仍提高，价值解释才更有说服力。这类锁定效应能保护收入，却也可能掩盖产品正在失去吸引力。','材料只确认订阅收入与留存发生变化，没有给出客户分层、价格调整或迁移数据。编辑判断是：下一步应把留存拆成主动使用与被动留下，否则公司可能误把退出困难当成产品竞争力。如果公司只奖励续费而不看实际使用，产品团队就可能把资源投向错误方向，甚至延误真正需要的改进。'],question:'如果使用量下降但续费率稳定，你会怎样解释这组数据？',variables:type==='lesson'?[]:['获客成本','服务成本','客户续费贡献'],limits:'结论只用于解释经营机制；材料没有提供客户分层，不能判断具体公司的长期利润。',sources:source.sources,criticalFacts:[{claim:'材料确认订阅收入与客户留存发生变化。',sourceUrls:[source.sources[0].url]}]};}
+function thoughtDraft(source,type='lesson'){return {type,lens:type==='lesson'?'switching-cost':'unit-economics',topicKey:type==='lesson'?'转换成本与续费':'订阅业务单位经济',title:type==='lesson'?'客户续费，未必只是因为满意':'订阅收入增长后，利润为什么可能没有同步增长',conclusion:type==='lesson'?'续费率只有与使用深度、价格变化和迁移成本一起看，才能判断客户留下是因为产品价值，还是因为离开太麻烦。':'订阅业务能否成为好生意，关键不在收入是否增长，而在每增加一元经常性收入需要付出多少获客和服务成本。',takeaway:'看任何续费或经常性收入生意，都要把客户主动留下和被迁移成本困住分开判断，不能只看表面的续费率。',keyTerm:'转换成本',plainExplanation:'也就是客户离开一家产品要花的钱、时间和折腾成本；就像换手机号后还要逐个通知联系人，所以即使不满意也可能暂时不换。',paragraphs:['转换成本包括数据迁移、员工重新学习和业务中断风险。它会让不满意的客户也暂时续费，因此高续费率不能单独证明产品体验优秀；若价格上调后使用深度仍提高，价值解释才更有说服力。这类锁定效应能保护收入，却也可能掩盖产品正在失去吸引力。','材料只确认订阅收入与留存发生变化，没有给出客户分层、价格调整或迁移数据。编辑判断是：下一步应把留存拆成主动使用与被动留下，否则公司可能误把退出困难当成产品竞争力。如果公司只奖励续费而不看实际使用，产品团队就可能把资源投向错误方向，甚至延误真正需要的改进。'],question:'如果使用量下降但续费率稳定，你会怎样解释这组数据？',variables:type==='lesson'?[]:['获客成本','服务成本','客户续费贡献'],limits:'结论只用于解释经营机制；材料没有提供客户分层，不能判断具体公司的长期利润。',sources:source.sources,criticalFacts:[{claim:'材料确认订阅收入与客户留存发生变化。',sourceUrls:[source.sources[0].url]}]};}
 function caller(overrides={}){return async opts=>{
  const input=JSON.parse(opts.userPrompt);
  if(overrides[opts.schemaName])return {parsed:await overrides[opts.schemaName](input,opts)};
@@ -147,6 +147,25 @@ test('thinking rejects the old trial-and-metrics core and recently used semantic
  assert.match(issues.join(' '),/同一商业机制分类/);assert.match(issues.join(' '),/通用的试点验证框架/);
  const specific=thoughtDraft(source),semanticIssues=thinkingIssues(specific,[source],{thinking:[{lens:'pricing',topicKey:'不同机制名',title:'完全不同的标题',conclusion:specific.conclusion,sentAt:'2026-09-27T00:00:00Z'}]},'lesson');
  assert.match(semanticIssues.join(' '),/核心结论重复/);
+});
+
+test('thinking requires a reusable takeaway and an everyday explanation of its core term',()=>{
+ const source=candidate(0),draft=thoughtDraft(source);
+ assert.match(renderPlainText(runEditorialPipeline({editorialVersion:2,briefingDate:date,candidates:[],thinking:draft})),/你能学到：/);
+ assert.match(renderPlainText(runEditorialPipeline({editorialVersion:2,briefingDate:date,candidates:[],thinking:draft})),/转换成本：/);
+ const issues=thinkingIssues({...draft,takeaway:'',plainExplanation:'这是一个重要的经济术语。'},[source],{thinking:[]},'lesson');
+ assert.match(issues.join(' '),/takeaway缺失/);assert.match(issues.join(' '),/大白话解释/);
+});
+
+test('thinking retries an invalid Flash JSON response with the configured Pro reviewer model',async()=>{
+ const source=candidate(0);const calls=[];
+ const result=await generateThinking([source],{thinking:[]},{generatorModel:'deepseek-v4-flash',reviewerModel:'deepseek-v4-pro',callStructured:async opts=>{
+  calls.push([opts.schemaName,opts.model]);
+  if(opts.schemaName==='business_thinking_v3'&&opts.model==='deepseek-v4-flash'){const error=Error('invalid');error.code='MODEL_OUTPUT_INVALID';throw error;}
+  if(opts.schemaName==='business_thinking_v3')return {parsed:thoughtDraft(source)};
+  return {parsed:{passed:true,issues:[]}};
+ }});
+ assert.equal(result.thinking.reviewed,true);assert.ok(calls.some(([,model])=>model==='deepseek-v4-pro'));
 });
 
 test('screening backlog survives scans without being marked attempted or losing original dates',()=>{
