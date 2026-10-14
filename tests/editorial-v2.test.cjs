@@ -104,7 +104,7 @@ test('thinking uses a separate material pool and rotates only after a delivered 
  assert.equal(nextThinkingType(loadEditorialHistory(state)),'lesson');
  recordDeliveredEdition(state,{briefingDate:date,events:[],thinking:result.thinking});
  assert.equal(nextThinkingType(loadEditorialHistory(state)),'teardown');
- assert.equal(loadEditorialHistory(state).thinking[0].lens,'switching-cost');
+ assert.equal(loadEditorialHistory(state).thinking[0].lens,'customer-value');
  assert.match(loadEditorialHistory(state).thinking[0].conclusion,/续费率/);
  assert.match(renderPlainText(runEditorialPipeline({editorialVersion:2,briefingDate:date,candidates:[],thinking:result.thinking})),/客户续费，未必只是因为满意/);
 });
@@ -157,10 +157,17 @@ test('thinking requires a reusable takeaway and an everyday explanation of its c
  assert.match(issues.join(' '),/takeaway缺失/);assert.match(issues.join(' '),/大白话解释/);
 });
 
-test('thinking prompt gives the model the exact locally accepted lens values',()=>{
- const request=generatorRequest('lesson',[candidate(0)],[],null,[],{},0,'deepseek','deepseek-v4-flash');
- assert.match(request.systemPrompt,/customer-value、pricing、distribution/);
- assert.match(request.systemPrompt,/governance/);
+test('thinking category is assigned by the editor so an invalid model category cannot suppress the column',async()=>{
+ const source=candidate(0);let request;
+ const result=await generateThinking([source],{thinking:[]},{callStructured:async opts=>{
+  if(opts.schemaName==='business_thinking_review_v3')return {parsed:{passed:true,issues:[]}};
+  request=opts;return {parsed:{...thoughtDraft(source),lens:'模型自定义分类'}};
+ }});
+ assert.equal(result.thinking.reviewed,true);
+ assert.equal(result.thinking.lens,'customer-value');
+ assert.equal(request.schema.properties.lens,undefined);
+ assert.match(request.systemPrompt,/本期商业机制已由编辑指定为“customer-value”/);
+ assert.match(request.systemPrompt,/绝不输出lens字段/);
 });
 
 test('thinking retries an invalid Flash JSON response with the configured Pro reviewer model',async()=>{

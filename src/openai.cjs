@@ -87,7 +87,7 @@ function deepSeekFormatInstruction(schemaName, schema) {
     return `${prefix} 顶层只能有passed和issues；passed为布尔值，issues为数组，最多三项。每项issues必须含eventIndex、severity、field、problem；eventIndex只能为0，severity只能为blocking或warning。`;
   }
   if (schemaName === 'business_thinking_v3') {
-    return `${prefix} 顶层只能有type、lens、topicKey、title、conclusion、takeaway、keyTerm、plainExplanation、paragraphs、question、variables、limits、sources、criticalFacts。type只能是lesson或teardown；lens只能是customer-value、pricing、distribution、cost-structure、unit-economics、switching-cost、network-effects、capacity、capital-allocation、business-model、competition、governance之一，必须原样使用英文；paragraphs恰好两项；sources一至两项且每项只含organization、title、url；criticalFacts至少一项且每项只含claim、sourceUrls；variables为数组。conclusion、takeaway、keyTerm、plainExplanation和limits都必须是非空字符串。不要输出输入材料、结构定义、Markdown或额外字段。`;
+    return `${prefix} 顶层只能有type、topicKey、title、conclusion、takeaway、keyTerm、plainExplanation、paragraphs、question、variables、limits、sources、criticalFacts。type只能是lesson或teardown；绝不输出lens；paragraphs恰好两项；sources一至两项且每项只含organization、title、url；criticalFacts至少一项且每项只含claim、sourceUrls；variables为数组。conclusion、takeaway、keyTerm、plainExplanation和limits都必须是非空字符串。不要输出输入材料、结构定义、Markdown或额外字段。`;
   }
   return `${prefix} JSON对象必须符合以下JSON Schema：${formatJsonSchema(schema)}`;
 }

@@ -60,8 +60,8 @@ test('窗口外模型调用不会连接服务商', async () => {
 test('商业思考使用紧凑JSON契约，避免把完整Schema送入DeepSeek', () => {
   const instruction = deepSeekFormatInstruction('business_thinking_v3', { type: 'object', properties: { veryLong: { type: 'string' } } });
   assert.match(instruction, /takeaway、keyTerm、plainExplanation/);
-  assert.match(instruction, /customer-value、pricing、distribution/);
-  assert.match(instruction, /必须原样使用英文/);
+  assert.match(instruction, /绝不输出lens/);
+  assert.doesNotMatch(instruction, /、lens、/);
   assert.match(instruction, /不要输出输入材料/);
   assert.doesNotMatch(instruction, /JSON Schema/);
 });
