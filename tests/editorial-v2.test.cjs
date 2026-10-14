@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
 const {applyBackgroundPolicy,eventIssues,generateEdition,screeningIssues,selectGenerationPool}=require('../src/editorial-engine.cjs');
-const {generateThinking,nextThinkingType,thinkingIssues}=require('../src/business-thinking.cjs');
+const {generateThinking,nextThinkingType,thinkingIssues,generatorRequest}=require('../src/business-thinking.cjs');
 const {prepareEditorialCandidates,planEditorialDiscovery}=require('../src/editorial-candidates.cjs');
 const {recordDeliveredEdition,loadEditorialHistory,previousCoverage}=require('../src/editorial-history.cjs');
 const {runEditorialPipeline}=require('../src/pipeline.cjs');
@@ -155,6 +155,12 @@ test('thinking requires a reusable takeaway and an everyday explanation of its c
  assert.match(renderPlainText(runEditorialPipeline({editorialVersion:2,briefingDate:date,candidates:[],thinking:draft})),/转换成本：/);
  const issues=thinkingIssues({...draft,takeaway:'',plainExplanation:'这是一个重要的经济术语。'},[source],{thinking:[]},'lesson');
  assert.match(issues.join(' '),/takeaway缺失/);assert.match(issues.join(' '),/大白话解释/);
+});
+
+test('thinking prompt gives the model the exact locally accepted lens values',()=>{
+ const request=generatorRequest('lesson',[candidate(0)],[],null,[],{},0,'deepseek','deepseek-v4-flash');
+ assert.match(request.systemPrompt,/customer-value、pricing、distribution/);
+ assert.match(request.systemPrompt,/governance/);
 });
 
 test('thinking retries an invalid Flash JSON response with the configured Pro reviewer model',async()=>{
