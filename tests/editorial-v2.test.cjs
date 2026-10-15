@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
 const {applyBackgroundPolicy,eventIssues,generateEdition,screeningIssues,selectGenerationPool}=require('../src/editorial-engine.cjs');
-const {generateThinking,nextThinkingType,thinkingIssues,generatorRequest}=require('../src/business-thinking.cjs');
+const {generateThinking,nextThinkingType,thinkingIssues,normalizeThinkingReview,generatorRequest}=require('../src/business-thinking.cjs');
 const {prepareEditorialCandidates,planEditorialDiscovery}=require('../src/editorial-candidates.cjs');
 const {recordDeliveredEdition,loadEditorialHistory,previousCoverage}=require('../src/editorial-history.cjs');
 const {runEditorialPipeline}=require('../src/pipeline.cjs');
@@ -131,6 +131,32 @@ test('thinking keeps a locally distinct mechanism when review only asserts an un
   return {parsed:thoughtDraft(source)};
  }});
  assert.equal(reviewCalls,1);assert.equal(result.audit.status,'passed');assert.equal(result.thinking.reviewed,true);
+});
+
+test('legacy generic fallback titles cannot block a new thinking column as historical duplicates',async()=>{
+ const source=candidate(0);let reviewerInput;
+ const legacy={thinking:[{lens:null,topicKey:'source-evidence-old',title:'面对新工具，先验证哪一个变量？',conclusion:null,sentAt:'2026-10-14T00:00:00Z'}]};
+ const result=await generateThinking([source],legacy,{callStructured:async opts=>{
+  if(opts.schemaName==='business_thinking_review_v3'){
+   reviewerInput=JSON.parse(opts.userPrompt);
+   return {parsed:{passed:false,issues:[{severity:'blocking',problem:'核心观点与历史主题重复：历史中已有“先试点再验证”主题，本稿只是换例子。'}]}};
+  }
+  return {parsed:thoughtDraft(source)};
+ }});
+ assert.deepEqual(reviewerInput.previousTopics,[]);
+ assert.equal(result.thinking.reviewed,true);
+});
+
+test('thinking review downgrades vague evidence demands but keeps direct source conflicts blocking',()=>{
+ const review=normalizeThinkingReview({passed:false,issues:[
+  {severity:'blocking',problem:'观点重复：该稿与历史“先试点再验证”内在重复。'},
+  {severity:'blocking',problem:'关键事实未充分核实：来源没有提供具体伙伴名称或更多交付细节。'},
+  {severity:'blocking',problem:'稿件将金额写成250万美元，与材料明确的2.5亿美元不符。'}
+ ]});
+ assert.equal(review.issues[0].severity,'warning');
+ assert.equal(review.issues[1].severity,'warning');
+ assert.equal(review.issues[2].severity,'blocking');
+ assert.equal(review.passed,false);
 });
 
 test('thinking refuses a generic fallback after three blocked drafts',async()=>{
