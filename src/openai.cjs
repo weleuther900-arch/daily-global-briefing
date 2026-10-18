@@ -89,6 +89,12 @@ function deepSeekFormatInstruction(schemaName, schema) {
   if (schemaName === 'business_thinking_v3') {
     return `${prefix} 顶层只能有type、topicKey、title、conclusion、takeaway、keyTerm、plainExplanation、paragraphs、question、variables、limits、sources、criticalFacts。type只能是lesson或teardown；绝不输出lens；paragraphs恰好两项；sources一至两项且每项只含organization、title、url；criticalFacts至少一项且每项只含claim、sourceUrls；variables为数组。conclusion、takeaway、keyTerm、plainExplanation和limits都必须是非空字符串。不要输出输入材料、结构定义、Markdown或额外字段。`;
   }
+  if (schemaName === 'weekly_business_case') {
+    return `${prefix} 顶层只能有title、subtitle、sections、decisionQuestions、sources，不能有其他字段。sections恰好四项，按顺序为：{role:"situation",paragraphs:["..."]}、{role:"decision",paragraphs:["..."]}、{role:"mechanism",paragraphs:["..."]}、{role:"outcome",paragraphs:["..."]}；每项paragraphs为一至两段非空字符串。decisionQuestions必须是复数数组，且恰好一项：[{question:"具体思考题",variables:["观察变量一","观察变量二"]}]；variables必须有二至四项，不能把question或variables放在顶层，也不能写成decisionQuestion。sources为一至三项，每项只能有organization、title、url，url必须逐字使用输入材料中的https链接。所有字符串非空；不要输出Markdown、解释、输入材料或额外字段。`;
+  }
+  if (schemaName === 'weekly_business_case_review') {
+    return `${prefix} 顶层只能有passed和issues；passed为布尔值；issues为数组，每项只能有severity和problem，severity只能为blocking或warning。`;
+  }
   return `${prefix} JSON对象必须符合以下JSON Schema：${formatJsonSchema(schema)}`;
 }
 

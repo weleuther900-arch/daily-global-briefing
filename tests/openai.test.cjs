@@ -66,6 +66,15 @@ test('商业思考使用紧凑JSON契约，避免把完整Schema送入DeepSeek',
   assert.doesNotMatch(instruction, /JSON Schema/);
 });
 
+test('周度案例使用精确的紧凑JSON契约，避免把思考题字段写错', () => {
+  const instruction = deepSeekFormatInstruction('weekly_business_case', { properties: { discarded: { description: '不应出现在紧凑契约中' } } });
+  assert.match(instruction, /decisionQuestions必须是复数数组/);
+  assert.match(instruction, /不能写成decisionQuestion/);
+  assert.match(instruction, /variables必须有二至四项/);
+  assert.doesNotMatch(instruction, /不应出现在紧凑契约中/);
+  assert.doesNotMatch(instruction, /JSON Schema/);
+});
+
 test('生成来源按候选URL继承已验证的公开访问元数据', () => {
   const event = normalizeGeneratedEvent({
     sources: [{ organization: '机构', title: '中文标题', url: 'https://example.com/open', access: 'paid', tier: 'C', isPrimary: false }]

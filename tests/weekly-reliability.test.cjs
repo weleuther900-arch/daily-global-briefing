@@ -67,6 +67,22 @@ test('修复后仍被拒绝则保留两轮审校，不放行案例',async()=>{
   assert.equal(calls,4);
 });
 
+test('案例初稿把思考题字段写错时，修复轮收到精确结构并在独立审校后放行',async()=>{
+  const materials=selectWeeklyCaseMaterialGroups(details,{cases:[]},now)[0];
+  const malformed={...contentFor(materials),decisionQuestions:undefined,decisionQuestion:'错误的单数字段',variables:['需求','现金流']};
+  const calls=[];
+  const result=await generateBusinessCase(materials,{now,allowWeeklyCase:true,callStructured:async options=>{
+    calls.push(options);
+    if(options.schemaName==='weekly_business_case')return {parsed:calls.filter(call=>call.schemaName==='weekly_business_case').length===1?malformed:contentFor(materials),cost};
+    return {parsed:{passed:true,issues:[]},cost};
+  }});
+  assert.equal(result.review.passed,true);
+  assert.equal(calls.length,3);
+  assert.match(calls[1].systemPrompt,/decisionQuestions复数数组/);
+  assert.match(calls[1].userPrompt,/结构底线/);
+  assert.match(calls[1].userPrompt,/不能使用decisionQuestion单数字段/);
+});
+
 test('审校已确认事实正确时，不把缺少次要细节继续作为阻断',()=>{
   const review=normalizeReview({passed:false,issues:[
     {severity:'blocking',problem:'稿件数字正确，但未提及另一项拆解，应补充。'},
