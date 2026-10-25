@@ -78,9 +78,27 @@ test('案例初稿把思考题字段写错时，修复轮收到精确结构并�
   }});
   assert.equal(result.review.passed,true);
   assert.equal(calls.length,3);
-  assert.match(calls[1].systemPrompt,/decisionQuestions复数数组/);
+  assert.match(calls[1].systemPrompt,/decisionQuestions必须是复数数组/);
   assert.match(calls[1].userPrompt,/结构底线/);
   assert.match(calls[1].userPrompt,/不能使用decisionQuestion单数字段/);
+});
+
+test('结构修复不占用内容修复机会，修复后的稿件仍须重新独立审校',async()=>{
+  const materials=selectWeeklyCaseMaterialGroups(details,{cases:[]},now)[0];
+  const malformed={...contentFor(materials),sections:[...contentFor(materials).sections].reverse()};
+  let generatorCalls=0;
+  let reviewerCalls=0;
+  const result=await generateBusinessCase(materials,{now,allowWeeklyCase:true,callStructured:async options=>{
+    if(options.schemaName==='weekly_business_case'){
+      generatorCalls++;
+      return {parsed:generatorCalls===1?malformed:contentFor(materials),cost};
+    }
+    reviewerCalls++;
+    return {parsed:reviewerCalls===1?{passed:false,issues:[{severity:'blocking',problem:'主体错误，与材料不符。'}]}:{passed:true,issues:[]},cost};
+  }});
+  assert.equal(generatorCalls,3);
+  assert.equal(reviewerCalls,2);
+  assert.deepEqual(result.attempts.map(item=>item.stage),['structure','independent-review','independent-review']);
 });
 
 test('审校已确认事实正确时，不把缺少次要细节继续作为阻断',()=>{
@@ -122,6 +140,25 @@ test('英文审校确认准确或只要求次要补充时降为提醒',()=>{
   assert.equal(review.issues[0].severity,'warning');
   assert.equal(review.issues[1].severity,'warning');
   assert.equal(review.issues[2].severity,'blocking');
+});
+
+test('审校不能因材料未主动提出条件分析或观察建议而阻断案例',()=>{
+  const review=normalizeReview({passed:false,issues:[
+    {severity:'blocking',problem:'文章提出下一步应观察客户采用比例，但材料中并未提供这些观察指标。'},
+    {severity:'blocking',problem:'文章说明本批材料未披露单位成本，材料本身未主动声明这一缺失。'},
+    {severity:'blocking',problem:'稿件把DINOv3写成DINO，属于主体错误且与材料不符。'}
+  ]});
+  assert.equal(review.passed,false);
+  assert.equal(review.issues[0].severity,'warning');
+  assert.equal(review.issues[1].severity,'warning');
+  assert.equal(review.issues[2].severity,'blocking');
+  const onlyAnalysis=normalizeReview({passed:false,issues:[
+    {severity:'blocking',problem:'下一步应观察客户采用比例，但材料中并未提供这些观察指标。'},
+    {severity:'blocking',problem:'本批材料未披露单位成本，材料本身没有主动声明这一缺失。'}
+  ]});
+  assert.equal(onlyAnalysis.passed,true);
+  const capped=normalizeReview({passed:false,issues:Array.from({length:6},()=>({severity:'warning',problem:'措辞建议'}))});
+  assert.equal(capped.issues.length,3);
 });
 
 test('案例素材验证在工作日不调用模型或SMTP',async()=>{

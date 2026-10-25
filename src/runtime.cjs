@@ -489,7 +489,7 @@ async function runDaily(options = {}) {
 }
 
 async function runWeeklyCase(options) {
-  const reviewPolicyVersion = 5;
+  const reviewPolicyVersion = 6;
   const now = options.now || new Date();
   const services = options.services || {};
   const readyPath = path.join(options.stateDirectory, 'weekly-case-ready.json');

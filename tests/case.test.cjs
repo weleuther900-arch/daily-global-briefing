@@ -17,6 +17,7 @@ test('周日商业案例固定为一条主线、四个步骤和一道问题', ()
   assert.equal(schema.properties.sections.maxItems, 4);
   assert.equal(schema.properties.decisionQuestions.minItems, 1);
   assert.equal(schema.properties.decisionQuestions.maxItems, 1);
+  assert.equal(require('../src/case.cjs').caseReviewSchema().properties.issues.maxItems, 3);
 });
 
 test('商业案例HTML和纯文本包含相同标题、问题和来源', () => {

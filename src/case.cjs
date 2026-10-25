@@ -18,7 +18,7 @@ function caseReviewSchema() {
     type: 'object', additionalProperties: false, required: ['passed', 'issues'],
     properties: {
       passed: { type: 'boolean' },
-      issues: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['severity', 'problem'], properties: { severity: { type: 'string', enum: ['blocking', 'warning'] }, problem: { type: 'string' } } } }
+      issues: { type: 'array', maxItems: 3, items: { type: 'object', additionalProperties: false, required: ['severity', 'problem'], properties: { severity: { type: 'string', enum: ['blocking', 'warning'] }, problem: { type: 'string' } } } }
     }
   };
 }
