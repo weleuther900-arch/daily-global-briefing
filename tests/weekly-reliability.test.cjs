@@ -7,6 +7,7 @@ const path = require('node:path');
 const { generateBusinessCase } = require('../src/case.cjs');
 const { normalizeReview } = require('../src/case-review.cjs');
 const { runDaily, selectWeeklyCaseMaterialGroups } = require('../src/runtime.cjs');
+const { weeklyDeliveryReceipt } = require('../src/weekly-delivery.cjs');
 const { weeklyCaseDate, isWeeklyCaseInvocationAllowed } = require('../src/model-window.cjs');
 
 const now = new Date('2026-09-19T22:00:00Z');
@@ -99,6 +100,46 @@ test('结构修复不占用内容修复机会，修复后的稿件仍须重新�
   assert.equal(generatorCalls,3);
   assert.equal(reviewerCalls,2);
   assert.deepEqual(result.attempts.map(item=>item.stage),['structure','independent-review','independent-review']);
+});
+
+test('周度案例完整链路从结构修复运行到SMTP回执并通过周度验收',async()=>{
+  const {root,services}=fixture();
+  let generatorCalls=0;
+  let reviewerCalls=0;
+  let smtpCalls=0;
+  services.generateBusinessCase=materials=>generateBusinessCase(materials,{now,allowWeeklyCase:true,callStructured:async options=>{
+    if(options.schemaName==='weekly_business_case'){
+      generatorCalls++;
+      const valid=contentFor(materials);
+      return {parsed:generatorCalls===1?{...valid,sections:[...valid.sections].reverse()}:valid,cost};
+    }
+    reviewerCalls++;
+    return {parsed:reviewerCalls===1
+      ?{passed:false,issues:[{severity:'blocking',problem:'主体错误，与材料不符。'}]}
+      :{passed:true,issues:[]},cost};
+  }});
+  services.sendWithRetry=async mime=>{
+    smtpCalls++;
+    assert.match(mime,/Subject:/);
+    assert.match(mime,/X-Daily-Global-Briefing-Trace: case-2026-09-20/);
+    return {status:250,attempts:1,submission:'250 2.0.0 OK'};
+  };
+
+  const result=await runDaily({root,mode:'case',now,send:true,caseServices:services});
+  assert.equal(result.status,'complete');
+  assert.equal(result.sent,true);
+  assert.equal(result.delivery.smtpStatus,250);
+  assert.equal(generatorCalls,3);
+  assert.equal(reviewerCalls,2);
+  assert.equal(smtpCalls,1);
+  for(const extension of ['html','txt','eml','audit.json']){
+    assert.ok(fs.existsSync(path.join(root,'output',`business-case-2026-09-20.${extension}`)));
+  }
+  const audit=JSON.parse(fs.readFileSync(path.join(root,'output/business-case-2026-09-20.audit.json'),'utf8'));
+  assert.equal(audit.status,'sent');
+  assert.deepEqual(audit.attempts[0].reviews.map(item=>item.stage),['structure','independent-review','independent-review']);
+  const state=JSON.parse(fs.readFileSync(path.join(root,'state/runs.json'),'utf8'));
+  assert.deepEqual(weeklyDeliveryReceipt(state,now),{date:'2026-09-20',accepted:true,runId:'2026-09-20-case'});
 });
 
 test('审校已确认事实正确时，不把缺少次要细节继续作为阻断',()=>{
