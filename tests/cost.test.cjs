@@ -28,9 +28,14 @@ test('月度费用门禁在调用前阻止超额', () => {
   assert.throws(() => assertBudget(ledger, { cny: 0.3 }, 10), /费用门禁拒绝调用/);
 });
 
-test('月度门禁使用预留成本而不是实际成本', () => {
-  assert.equal(getMonthSpend({ entries: [{ month: monthKey(), cny: 0.5, budgetCny: 1 }] }), 1);
-  assert.equal(getMonthSpend({ entries: [{ month: monthKey(new Date('2026-09-30T23:06:00Z')), cny: 0.5, budgetCny: 1 }] }, monthKey(new Date('2026-09-30T23:06:00Z'))), 1);
+test('月度上限累计实际费用，下一次调用仍按保守预估留额度', () => {
+  assert.equal(getMonthSpend({ entries: [{ month: monthKey(), cny: 0.5, budgetCny: 1 }] }), 0.5);
+  assert.equal(getMonthSpend({ entries: [{ month: monthKey(new Date('2026-09-30T23:06:00Z')), cny: 0.5, budgetCny: 1 }] }, monthKey(new Date('2026-09-30T23:06:00Z'))), 0.5);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'dgb-actual-budget-'));
+  const ledger = path.join(directory, 'ledger.json');
+  appendCost(ledger, { cny: 9.8, budgetCny: 19.6, recordedAt: new Date().toISOString() });
+  assert.ok(Math.abs(assertBudget(ledger, { cny: 0.1, budgetCny: 0.2 }, 10).remainingAfterProjectedCny) < 1e-10);
+  assert.throws(() => assertBudget(ledger, { cny: 0.11, budgetCny: 0.22 }, 10), error => error.code === 'MONTHLY_BUDGET_EXCEEDED');
 });
 
 test('每日Token门禁在调用前阻止超额', () => {

@@ -40,7 +40,7 @@ function dayKey(date = new Date()) {
 
 function getMonthSpend(ledger, month = monthKey()) {
   return (ledger.entries || []).filter((entry) => entry.month === month)
-    .reduce((total, entry) => total + Number((entry.budgetCny ?? entry.cny) || 0), 0);
+    .reduce((total, entry) => total + Number(entry.cny || 0), 0);
 }
 
 function getDayTokenSpend(ledger, day = dayKey()) {
@@ -49,15 +49,16 @@ function getDayTokenSpend(ledger, day = dayKey()) {
     .reduce((total, entry) => total + Number(entry.inputTokens || 0) + Number(entry.outputTokens || 0), 0);
 }
 
-function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 15) {
+function assertBudget(ledgerPath, projectedCost, monthlyBudgetCny = 20) {
   const ledger = readJson(ledgerPath, { entries: [] });
   const spent = getMonthSpend(ledger);
-  if (spent + projectedCost.cny > monthlyBudgetCny) {
-    const error = new Error(`费用门禁拒绝调用：本月已用约${spent.toFixed(2)}元，本次上限约${projectedCost.cny.toFixed(2)}元，预算${monthlyBudgetCny.toFixed(2)}元。`);
+  const projected = Number(projectedCost.budgetCny ?? projectedCost.cny ?? 0);
+  if (spent + projected > monthlyBudgetCny) {
+    const error = new Error(`费用门禁拒绝调用：本月实际记账约${spent.toFixed(2)}元，本次保守预估约${projected.toFixed(2)}元，预算${monthlyBudgetCny.toFixed(2)}元。`);
     error.code = 'MONTHLY_BUDGET_EXCEEDED';
     throw error;
   }
-  return { spentCny: spent, remainingAfterProjectedCny: monthlyBudgetCny - spent - projectedCost.cny };
+  return { spentCny: spent, remainingAfterProjectedCny: monthlyBudgetCny - spent - projected };
 }
 
 function assertDailyTokenBudget(ledgerPath, projectedCost, dailyTokenBudget) {

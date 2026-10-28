@@ -102,9 +102,14 @@ function writeFailure(outputDirectory, runId, phase, error, context = {}) {
   return target;
 }
 
-function assertPublishableEditorialResult(result) {
+function assertPublishableEditorialResult(result, review = {}) {
   if (result.editorialVersion === 2 && result.thinking?.reviewed === true) return;
   if (Array.isArray(result && result.events) && result.events.length > 0) return result;
+  if (review.resourceStop === 'MONTHLY_BUDGET_EXCEEDED' || review.resourceStop === 'DAILY_TOKEN_BUDGET_EXCEEDED') {
+    const error = new Error('模型预算已用尽，本期没有可投递内容。');
+    error.code = review.resourceStop;
+    throw error;
+  }
   const rejectedCount = Array.isArray(result && result.audit && result.audit.rejected) ? result.audit.rejected.length : 0;
   const error = new Error(`确定性编辑校验未留下可投递内容（拒绝${rejectedCount}条）。`);
   error.code = 'NO_PUBLISHABLE_CONTENT';
@@ -134,7 +139,7 @@ function summarizeModelUsage(costs = []) {
 function monthlyBudgetForRun(now = new Date(), environment = process.env) {
   const hardStopUntil = Date.parse(environment.AI_HARD_STOP_UNTIL || '');
   if (Number.isFinite(hardStopUntil) && now.getTime() < hardStopUntil) return 0;
-  const budget = Number(environment.MONTHLY_AI_BUDGET_CNY || 15);
+  const budget = Number(environment.MONTHLY_AI_BUDGET_CNY || 20);
   return Number.isFinite(budget) && budget >= 0 ? budget : 10;
 }
 
@@ -437,7 +442,7 @@ async function runDaily(options = {}) {
     // 先落盘审计信息，使全部拒绝时也能在私有运行产物中查看原因。
     const modelUsage = summarizeModelUsage(generated.costs);
     writeJsonAtomic(path.join(outputDirectory, `briefing-${date}.audit.json`), { ...result.audit, review: generated.review, modelUsage });
-    assertPublishableEditorialResult(result);
+    assertPublishableEditorialResult(result, generated.review);
 
     phase = 'artifact-finalization';
     log('phase-start');

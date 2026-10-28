@@ -20,6 +20,13 @@ test('编辑校验未留下任何合格内容时停止投递', () => {
   );
 });
 
+test('月度预算耗尽导致空稿时明确记录为预算停止', () => {
+  assert.throws(
+    () => assertPublishableEditorialResult({ events: [], audit: { rejected: [] } }, { resourceStop: 'MONTHLY_BUDGET_EXCEEDED' }),
+    error => error.code === 'MONTHLY_BUDGET_EXCEEDED' && /预算已用尽/.test(error.message)
+  );
+});
+
 test('运行审计汇总模型调用的Token和成本', () => {
   const usage = summarizeModelUsage([
     { model: 'deepseek-v4-flash', inputTokens: 100, outputTokens: 20, cny: 0.01 },
@@ -38,6 +45,10 @@ test('硬停止期限内的月度预算为零', () => {
   const environment = { MONTHLY_AI_BUDGET_CNY: '10', AI_HARD_STOP_UNTIL: '2026-09-01T00:00:00+08:00' };
   assert.equal(monthlyBudgetForRun(new Date('2026-08-31T15:00:00Z'), environment), 0);
   assert.equal(monthlyBudgetForRun(new Date('2026-09-01T00:00:00Z'), environment), 10);
+});
+
+test('未配置月度预算时默认上限为20元', () => {
+  assert.equal(monthlyBudgetForRun(new Date('2026-10-28T00:00:00Z'), {}), 20);
 });
 
 test('旧版样例路径兼容映射到当前内置样例', () => {
